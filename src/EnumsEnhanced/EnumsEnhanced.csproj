@@ -6,7 +6,6 @@
 		<Nullable>enable</Nullable>
 		<LangVersion>latest</LangVersion>
 		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-		<AssemblyVersion>3.0.0.0</AssemblyVersion>
 		<Platforms>AnyCPU</Platforms>
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
 
