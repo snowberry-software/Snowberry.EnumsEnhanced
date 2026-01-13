@@ -265,7 +265,6 @@ internal class EnumsEnhanced : IIncrementalGenerator
             constantValuesChecked.Clear();
             GenerateFlagCases(flagCasesToString, isToString: true, enumSymbol, enumUnderlyingType, sortedByConstantValueDescGrouped, constantValuesChecked, c_ToStringFastInternal);
 
-            const string c_CheckedMaskName = "checkedMask";
             const string c_CheckedMaskNameCurrent = "checkedMaskCurrent";
 
             AppendGetNameMethod(methodSb, "public", enumSymbol, enumUnderlyingType, getNameMethodName, switchCases, flagCases, isFlags);
@@ -310,13 +309,14 @@ internal class EnumsEnhanced : IIncrementalGenerator
                         }
                 
                         {{(writeFlags ? "" : $"return (({enumUnderlyingType.Name})e).ToString();")}}
-
+                        
+                        {{(!writeFlags ? "/*" : "")}}
+                        // FLAGS {{(writeFlags ? "ENABLED" : "DISABLED")}}
                         // Returning null is the default behavior.
                         if(!includeFlagNames)
                             return null;
                             //throw new Exception("Enum name could not be found!");
                 
-                        {{(!writeFlags ? "/*" : "")}}
 
                         var flagBuilder = new StringBuilder();
                         {{flagCases}}
