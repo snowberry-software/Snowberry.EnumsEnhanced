@@ -1,5 +1,4 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
@@ -15,9 +14,9 @@
 
 		<PackageReleaseNotes>(Please write the package release notes in "CHANGELOG.txt".)</PackageReleaseNotes>
 	</PropertyGroup>
-	
+
 	<Import Project="..\NuGetPackage.props" />
-	
+
 	<ItemGroup>
 		<!-- Package the generator in the analyzer directory of the nuget package -->
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
@@ -32,7 +31,7 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		
+
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="*" />
 	</ItemGroup>
 
