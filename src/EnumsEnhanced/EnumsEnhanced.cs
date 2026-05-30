@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+using System.Collections;
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -10,7 +11,21 @@ namespace EnumsEnhanced;
 [Generator]
 internal class EnumsEnhanced : IIncrementalGenerator
 {
-    public static readonly DiagnosticDescriptor UnderylingEnumerationTypeNotFound
+    /// <summary>
+    /// Tracking name applied to the incremental transform step, used to inspect caching behavior
+    /// (for example from incrementality tests via <see cref="GeneratorRunResult.TrackedSteps"/>).
+    /// </summary>
+    public const string c_TrackingName = "EnumsToGenerate";
+
+    /// <summary>
+    /// Name of the generated, hoisted trim-chars field (emitted once per <see cref="FlagsAttribute"/> enum).
+    /// </summary>
+    private const string c_TrimCharsField = "s_flagTrimChars";
+
+    /// <summary>
+    /// Diagnostic reported when the underlying type of an enumeration cannot be resolved.
+    /// </summary>
+    public static readonly DiagnosticDescriptor s_UnderlyingEnumerationTypeNotFound
       = new("EE001",
             "Underlying Enumeration Type not found",
             "The underlying type of the enumeration '{0}' could not be resolved",
@@ -23,42 +38,113 @@ internal class EnumsEnhanced : IIncrementalGenerator
     {
         var enumDeclarationsProvider = context.SyntaxProvider.CreateSyntaxProvider(
             static (n, _) => n is EnumDeclarationSyntax,
-            static (n, _) => ((INamedTypeSymbol)n.SemanticModel.GetDeclaredSymbol(n.Node)!, (EnumDeclarationSyntax)n.Node)
-        );
+            static (n, _) => TransformEnum(n))
+            .Where(static m => m is not null)
+            .WithTrackingName(c_TrackingName);
 
-        context.RegisterSourceOutput(enumDeclarationsProvider.Collect(), static (sourceProductionContext, enumDeclarations) =>
+        context.RegisterSourceOutput(enumDeclarationsProvider, static (sourceProductionContext, model) =>
         {
-            foreach (var pair in enumDeclarations)
+            var enumToGenerate = model!.Value;
+
+            if (!enumToGenerate.HasUnderlyingType)
             {
-                var symbol = pair.Item1;
-                var eds = pair.Item2;
+                sourceProductionContext.ReportDiagnostic(
+                    Diagnostic.Create(s_UnderlyingEnumerationTypeNotFound,
+                    Location.None,
+                    enumToGenerate.Name));
 
-                if (symbol.ContainingType != null)
-                    continue;
-
-                var membersSymbols = symbol
-                    .GetMembers()
-                    .Where(x => x is IFieldSymbol)
-                    .Cast<IFieldSymbol>()
-                    .ToImmutableArray();
-
-                var sb = new StringBuilder();
-
-                //foreach (var memberSymbol in membersSymbols)
-                //    sb.AppendLine($"// {memberSymbol.Name}");
-
-                GenerateEnumMethods(sourceProductionContext, eds, symbol, membersSymbols, sb);
-
-                string classCode = GetClassTemplate(eds, symbol, out string? className)
-                    .Replace("{CLASS_BODY}", sb.ToString());
-
-                sourceProductionContext.AddSource($"{className}.g.cs", classCode.Trim());
+                return;
             }
+
+            var sb = new StringBuilder();
+
+            GenerateEnumMethods(enumToGenerate, sb);
+
+            string classCode = GetClassTemplate(enumToGenerate, out string hintName)
+                .Replace("{CLASS_BODY}", sb.ToString());
+
+            sourceProductionContext.AddSource(hintName, classCode.Trim());
         });
     }
 
-    private static void GenerateEnumMethods(SourceProductionContext sourceProductionContext, EnumDeclarationSyntax enumDeclarationSyntax, INamedTypeSymbol enumSymbol, IList<IFieldSymbol> memberSymbols, StringBuilder methodSb)
+    /// <summary>
+    /// Builds the value-equatable model for an enum declaration so the incremental pipeline can cache it.
+    /// </summary>
+    /// <param name="context">The syntax context for the candidate <see cref="EnumDeclarationSyntax"/>.</param>
+    /// <returns>
+    /// The model describing the enum, or <see langword="null"/> for nested enums (which are intentionally skipped).
+    /// </returns>
+    private static EnumToGenerate? TransformEnum(GeneratorSyntaxContext context)
     {
+        if (context.SemanticModel.GetDeclaredSymbol(context.Node) is not INamedTypeSymbol symbol)
+            return null;
+
+        // Nested enums are not supported: skip them silently.
+        if (symbol.ContainingType != null)
+            return null;
+
+        string accessModifier = AccessibilityToAccessModifier(symbol.DeclaredAccessibility);
+        string @namespace = symbol.ContainingNamespace.ToDisplayString();
+
+        var enumUnderlyingType = symbol.EnumUnderlyingType;
+
+        // Defensive guard only: a valid EnumDeclarationSyntax always has a non-null underlying type
+        // (Roslyn defaults it to Int32), so this branch is effectively unreachable.
+        if (enumUnderlyingType == null)
+        {
+            return new EnumToGenerate(
+                symbol.Name,
+                @namespace,
+                accessModifier,
+                underlyingTypeName: string.Empty,
+                isFlags: false,
+                hasUnderlyingType: false,
+                members: new EquatableArray<EnumMember>(System.Array.Empty<EnumMember>()));
+        }
+
+        bool isFlags = symbol
+            .GetAttributes()
+            .Any(a => SymbolEqualityComparer.Default.Equals(
+                a.AttributeClass,
+                context.SemanticModel.Compilation.GetTypeByMetadataName("System.FlagsAttribute")));
+
+        var members = symbol
+            .GetMembers()
+            .OfType<IFieldSymbol>()
+            .Select(static f => new EnumMember(f.Name, f.HasConstantValue, f.HasConstantValue ? f.ConstantValue : null))
+            .ToArray();
+
+        return new EnumToGenerate(
+            symbol.Name,
+            @namespace,
+            accessModifier,
+            enumUnderlyingType.Name,
+            isFlags,
+            hasUnderlyingType: true,
+            new EquatableArray<EnumMember>(members));
+
+        static string AccessibilityToAccessModifier(Accessibility accessibility)
+        {
+            return accessibility switch
+            {
+                Accessibility.Internal or Accessibility.Private => "internal",
+                _ => "public"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Emits the body (all extension methods) for a single enum into <paramref name="methodSb"/>.
+    /// </summary>
+    /// <param name="e">The model describing the enum to generate methods for.</param>
+    /// <param name="methodSb">The builder that receives the generated class body.</param>
+    private static void GenerateEnumMethods(EnumToGenerate e, StringBuilder methodSb)
+    {
+        string enumName = e.Name;
+        string underlyingName = e.UnderlyingTypeName;
+        bool isFlags = e.IsFlags;
+        var memberSymbols = e.Members;
+
         var methodImplAttributeText = new StringBuilder();
         methodImplAttributeText.AppendLine("#if NETCOREAPP3_0_OR_GREATER");
         //methodImplAttributeText.AppendLine($"[{nameof(MethodImplAttribute)}({nameof(MethodImplOptions)}.{nameof(MethodImplOptions.AggressiveInlining)} | {nameof(MethodImplOptions)}.AggressiveOptimization)]");
@@ -68,27 +154,15 @@ internal class EnumsEnhanced : IIncrementalGenerator
 
         const string hasFlagMethodName = "HasFlagFast";
 
-        var enumUnderlyingType = enumSymbol.EnumUnderlyingType;
-
-        if (enumUnderlyingType == null)
+        // Hoisted trim chars: only the flag-decomposition path uses Trim, so emit the field
+        // only for [Flags] enums to avoid an unused-field warning in consumers.
+        if (isFlags)
         {
-            sourceProductionContext.ReportDiagnostic(
-                Diagnostic.Create(UnderylingEnumerationTypeNotFound,
-                enumDeclarationSyntax.Identifier.GetLocation(),
-                enumDeclarationSyntax.Identifier.ToString()));
+            methodSb.AppendLine($$"""
 
-            return;
+                private static readonly char[] {{c_TrimCharsField}} = new char[] { ',', ' ' };
+            """);
         }
-
-        bool isFlags = enumSymbol
-            .GetAttributes()
-            .Any(a => a.AttributeClass?.ToDisplayString() == "System.FlagsAttribute");
-
-        var enumUnderlyingTypeSpecial = enumUnderlyingType.SpecialType;
-
-        bool isByteCheck = enumUnderlyingTypeSpecial is
-            SpecialType.System_Byte or SpecialType.System_SByte or
-            SpecialType.System_Boolean or SpecialType.System_Char;
 
         // HasFlagFast
         {
@@ -101,13 +175,13 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 /// <param name="flag">The flag to check.</param>
                 /// <returns><see langword="true"/> if the bit field or bit fields that are set in flag are also set in the current instance; otherwise, false.</returns>
                 {{methodImplAttributeText}}
-                public static bool {{hasFlagMethodName}}(this {{enumSymbol.Name}} e, {{enumSymbol.Name}} flag)
+                public static bool {{hasFlagMethodName}}(this {{enumName}} e, {{enumName}} flag)
                 {
             #if NETCOREAPP3_0_OR_GREATER
-                    {{enumUnderlyingType.Name}} flagsValue = Unsafe.As<{{enumSymbol.Name}}, {{enumUnderlyingType.Name}}>(ref flag);
-                    return (Unsafe.As<{{enumSymbol.Name}}, {{enumUnderlyingType.Name}}>(ref e) & flagsValue) == flagsValue;
+                    {{underlyingName}} flagsValue = Unsafe.As<{{enumName}}, {{underlyingName}}>(ref flag);
+                    return (Unsafe.As<{{enumName}}, {{underlyingName}}>(ref e) & flagsValue) == flagsValue;
             #else
-                    return (({{enumUnderlyingType.Name}})e & ({{enumUnderlyingType.Name}})flag) == ({{enumUnderlyingType.Name}})flag;
+                    return (({{underlyingName}})e & ({{underlyingName}})flag) == ({{underlyingName}})flag;
             #endif
                 }
             """);
@@ -138,10 +212,10 @@ internal class EnumsEnhanced : IIncrementalGenerator
             /// Retrieves an array of the values of the constants.
             /// </summary>
             /// <returns>An array that contains the values of the constants.</returns>
-            public static {{enumSymbol.Name}}[] {{getValuesMethodName}}()
+            public static {{enumName}}[] {{getValuesMethodName}}()
             {
-                return new {{enumSymbol.Name}}[] {
-                    {{string.Join(", ", memberSymbols.Select(x => $"{enumSymbol.Name}.{x.Name}"))}}
+                return new {{enumName}}[] {
+                    {{string.Join(", ", memberSymbols.Select(x => $"{enumName}.{x.Name}"))}}
                 };
             }
 
@@ -157,7 +231,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
 
             foreach (var member in memberSymbols.OrderBy(x => x.Name.Length))
             {
-                string memberRef = $"{enumSymbol.Name}.{member.Name}";
+                string memberRef = $"{enumName}.{member.Name}";
 
                 switchCases.AppendLine($"case \"{member.Name}\":");
                 switchCases.AppendLine("\treturn true;");
@@ -165,7 +239,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 if (!member.HasConstantValue)
                     continue;
 
-                if (constantValuesChecked.Contains(member.ConstantValue))
+                if (constantValuesChecked.Contains(member.ConstantValue!))
                 {
                     string skipText = $"// Skipping duplicated constant value: {memberRef} -> {member.ConstantValue}";
                     switchCasesValue.AppendLine(skipText);
@@ -176,14 +250,14 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 switchCasesValue.AppendLine($"case {memberRef}:");
                 switchCasesValue.AppendLine("\treturn true;");
 
-                constantValuesChecked.Add(member.ConstantValue);
+                constantValuesChecked.Add(member.ConstantValue!);
             }
 
             constantValuesChecked.Clear();
 
             methodSb.AppendLine($$"""
 
-                /// <inheritdoc cref="{{isDefinedMethodName}}({{enumSymbol.Name}})"/>
+                /// <inheritdoc cref="{{isDefinedMethodName}}({{enumName}})"/>
                 public static bool {{isDefinedMethodName}}(string value)
                 {
                     _ = value ?? throw new ArgumentNullException(nameof(value));
@@ -196,11 +270,11 @@ internal class EnumsEnhanced : IIncrementalGenerator
                     return false;
                 }
 
-                /// <inheritdoc cref="{{isDefinedMethodName}}({{enumSymbol.Name}})"/>
+                /// <inheritdoc cref="{{isDefinedMethodName}}({{enumName}})"/>
                 {{methodImplAttributeText}}
-                public static bool {{isDefinedMethodName}}({{enumUnderlyingType.Name}} value)
+                public static bool {{isDefinedMethodName}}({{underlyingName}} value)
                 {
-                    return {{isDefinedMethodName}}(({{enumSymbol.Name}})value);
+                    return {{isDefinedMethodName}}(({{enumName}})value);
                 }
 
                 /// <summary>
@@ -208,7 +282,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 /// </summary>
                 /// <param name="value">The value of the enumeration constant.</param>
                 /// <returns><see langword="true"/> if a constant is defined with the given value from the <paramref name="value"/>.</returns>
-                public static bool {{isDefinedMethodName}}({{enumSymbol.Name}} value)
+                public static bool {{isDefinedMethodName}}({{enumName}} value)
                 {
                     switch(value)
                     {
@@ -230,26 +304,23 @@ internal class EnumsEnhanced : IIncrementalGenerator
             var flagCasesToString = new StringBuilder();
             var switchCasesToString = new StringBuilder();
 
-            const string separator = $", ";
-
             var groupedByValue = memberSymbols
                 .Where(x => x.HasConstantValue)
                 .GroupBy(x => x.ConstantValue);
 
             foreach (var group in groupedByValue)
             {
-                object? value = group.Key;
                 var memberFirst = group.First();
                 var memberLast = isFlags ? group.Last() : group.First();
 
                 // GetNameFast uses FIRST name (matches Enum.GetName behavior)
-                string memberRefFirst = $"{enumSymbol.Name}.{memberFirst.Name}";
+                string memberRefFirst = $"{enumName}.{memberFirst.Name}";
                 switchCases.AppendLine($"case {memberRefFirst}:");
                 switchCases.AppendLine($"\treturn nameof({memberRefFirst});");
                 switchCases.AppendLine();
 
                 // ToStringFast uses LAST name (matches Enum.ToString behavior)
-                string memberRefLast = $"{enumSymbol.Name}.{memberLast.Name}";
+                string memberRefLast = $"{enumName}.{memberLast.Name}";
                 switchCasesToString.AppendLine($"case {memberRefLast}:");
                 switchCasesToString.AppendLine($"\treturn nameof({memberRefLast});");
                 switchCasesToString.AppendLine();
@@ -261,14 +332,12 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 .GroupBy(x => x.ConstantValue);
 
             const string c_ToStringFastInternal = "ToStringFastInternal";
-            GenerateFlagCases(flagCases, isToString: false, enumSymbol, enumUnderlyingType, sortedByConstantValueDescGrouped, constantValuesChecked, getNameMethodName);
+            GenerateFlagCases(flagCases, enumName, underlyingName, sortedByConstantValueDescGrouped, constantValuesChecked, getNameMethodName);
             constantValuesChecked.Clear();
-            GenerateFlagCases(flagCasesToString, isToString: true, enumSymbol, enumUnderlyingType, sortedByConstantValueDescGrouped, constantValuesChecked, c_ToStringFastInternal);
+            GenerateFlagCases(flagCasesToString, enumName, underlyingName, sortedByConstantValueDescGrouped, constantValuesChecked, c_ToStringFastInternal);
 
-            const string c_CheckedMaskNameCurrent = "checkedMaskCurrent";
-
-            AppendGetNameMethod(methodSb, "public", enumSymbol, enumUnderlyingType, getNameMethodName, switchCases, flagCases, isFlags);
-            AppendGetNameMethod(methodSb, "private", enumSymbol, enumUnderlyingType, c_ToStringFastInternal, switchCasesToString, flagCasesToString, isFlags);
+            AppendGetNameMethod(methodSb, "public", enumName, underlyingName, getNameMethodName, switchCases, flagCases, isFlags);
+            AppendGetNameMethod(methodSb, "private", enumName, underlyingName, c_ToStringFastInternal, switchCasesToString, flagCasesToString, isFlags);
 
             methodSb.AppendLine($$"""
 
@@ -278,7 +347,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 /// <param name="e">The value of a particular enumerated constant in terms of its underlying type.</param>
                 /// <returns>The string representation of the value of this instance.</returns>
                 {{methodImplAttributeText}}
-                public static string? {{toStringMethodName}}(this {{enumSymbol.Name}} e)
+                public static string? {{toStringMethodName}}(this {{enumName}} e)
                 {
                     return {{c_ToStringFastInternal}}(e, true);
                 }
@@ -287,13 +356,15 @@ internal class EnumsEnhanced : IIncrementalGenerator
             static void AppendGetNameMethod(
                 StringBuilder sb,
                 string accessModifier,
-                ISymbol enumSymbol,
-                ISymbol enumUnderlyingType,
+                string enumName,
+                string underlyingName,
                 string methodName,
                 StringBuilder switchCases,
                 StringBuilder flagCases,
                 bool writeFlags)
             {
+                const string c_CheckedMaskNameCurrent = "checkedMaskCurrent";
+
                 sb.AppendLine($$"""
                     /// <summary>
                     /// Resolves the name of the given enum value.
@@ -301,29 +372,29 @@ internal class EnumsEnhanced : IIncrementalGenerator
                     /// <param name="e">The value of a particular enumerated constant in terms of its underlying type.</param>
                     /// <param name="includeFlagNames">Determines whether the value has flags, so it will return `EnumValue, EnumValue2`.</param>
                     /// <returns> A string containing the name of the enumerated constant or <see langword="null"/> if the enum has multiple flags set but <paramref name="includeFlagNames"/> is not enabled.</returns>
-                    {{accessModifier}} static string? {{methodName}}(this {{enumSymbol.Name}} e, bool includeFlagNames = false)
+                    {{accessModifier}} static string? {{methodName}}(this {{enumName}} e, bool includeFlagNames = false)
                     {
                         switch(e)
                         {
                             {{switchCases}}
                         }
-                
-                        {{(writeFlags ? "" : $"return (({enumUnderlyingType.Name})e).ToString();")}}
-                        
+
+                        {{(writeFlags ? "" : $"return (({underlyingName})e).ToString();")}}
+
                         {{(!writeFlags ? "/*" : "")}}
                         // FLAGS {{(writeFlags ? "ENABLED" : "DISABLED")}}
                         // Returning null is the default behavior.
                         if(!includeFlagNames)
                             return null;
                             //throw new Exception("Enum name could not be found!");
-                
+
 
                         var flagBuilder = new StringBuilder();
                         {{flagCases}}
                         if({{c_CheckedMaskNameCurrent}} != default)
-                            return (({{enumUnderlyingType.Name}})e).ToString();
+                            return (({{underlyingName}})e).ToString();
 
-                        return flagBuilder.ToString().Trim(new char[] { ',', ' ' });
+                        return flagBuilder.ToString().Trim({{c_TrimCharsField}});
 
                         {{(!writeFlags ? "*/" : "")}}
                     }
@@ -331,30 +402,32 @@ internal class EnumsEnhanced : IIncrementalGenerator
             }
 
             static void GenerateFlagCases(StringBuilder flagCasesBuilder,
-                bool isToString,
-                ISymbol enumSymbol,
-                ISymbol enumUnderlyingType,
-                IEnumerable<IGrouping<object?, IFieldSymbol>> fields,
+                string enumName,
+                string underlyingName,
+                IEnumerable<IGrouping<object?, EnumMember>> fields,
                 List<object> constantValuesChecked,
                 string toStringMethodName)
             {
+                const string c_CheckedMaskNameCurrent = "checkedMaskCurrent";
+                const string separator = ", ";
+
                 bool foundZero = false;
-                flagCasesBuilder.AppendLine($"{enumUnderlyingType.Name} {c_CheckedMaskNameCurrent} = ({enumUnderlyingType.Name})e;");
+                flagCasesBuilder.AppendLine($"{underlyingName} {c_CheckedMaskNameCurrent} = ({underlyingName})e;");
                 foreach (var group in fields)
                 {
                     var member = group.Last();
 
-                    string memberRef = $"{enumSymbol.Name}.{member.Name}";
+                    string memberRef = $"{enumName}.{member.Name}";
 
                     if (member.HasConstantValue)
                     {
-                        if (!foundZero && member.ConstantValue.ToString() == "0")
+                        if (!foundZero && member.ConstantValue!.ToString() == "0")
                         {
                             foundZero = true;
                             continue;
                         }
 
-                        if (constantValuesChecked.Contains(member.ConstantValue))
+                        if (constantValuesChecked.Contains(member.ConstantValue!))
                         {
                             string skipText = $"// Skipping duplicated constant value: {memberRef} -> {member.ConstantValue}";
 
@@ -363,11 +436,11 @@ internal class EnumsEnhanced : IIncrementalGenerator
                             continue;
                         }
 
-                        constantValuesChecked.Add(member.ConstantValue);
+                        constantValuesChecked.Add(member.ConstantValue!);
                     }
 
                     flagCasesBuilder.AppendLine(@$"if(({c_CheckedMaskNameCurrent} & {member.ConstantValue}) == {member.ConstantValue}) {{");
-                    flagCasesBuilder.AppendLine("\t" + @$"flagBuilder.{nameof(StringBuilder.Insert)}(0, ""{separator}"" + {memberRef}.{toStringMethodName}(false));");
+                    flagCasesBuilder.AppendLine("\t" + @$"flagBuilder.{nameof(StringBuilder.Insert)}(0, {memberRef}.{toStringMethodName}(false)).{nameof(StringBuilder.Insert)}(0, ""{separator}"");");
                     flagCasesBuilder.AppendLine("\t" + @$"{c_CheckedMaskNameCurrent} -= {member.ConstantValue}; }}");
                     flagCasesBuilder.AppendLine();
                 }
@@ -384,7 +457,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
 
             constantValuesChecked.Clear();
 
-            foreach (var member in memberSymbols.OrderBy(x => x.Name.Length).Cast<IFieldSymbol>())
+            foreach (var member in memberSymbols.OrderBy(x => x.Name.Length))
             {
                 if (!member.HasConstantValue)
                     continue;
@@ -392,7 +465,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 if (member.ConstantValue == null)
                     continue;
 
-                string memberRef = $"{enumSymbol.Name}.{member.Name}";
+                string memberRef = $"{enumName}.{member.Name}";
 
                 string constantValueString = member.ConstantValue is IConvertible convertible ? convertible.ToString(CultureInfo.InvariantCulture) : member.ConstantValue.ToString();
 
@@ -416,7 +489,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 /// <param name="ignoreCase"><see langword="true"/> to ignore case; false to regard case.</param>
                 /// <param name="result">The result of the enumeration constant.</param>
                 /// <returns><see langword="true"/> if the conversion succeeded; <see langword="false"/> otherwise.</returns>
-                public static bool {{tryParseMethodName}}(string value, bool ignoreCase, out {{enumSymbol.Name}} result)
+                public static bool {{tryParseMethodName}}(string value, bool ignoreCase, out {{enumName}} result)
                 {
                     result = {{parseMethodName}}(out var successful, value: value, ignoreCase: ignoreCase, throwOnFailure: false);
                     return successful;
@@ -428,7 +501,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 /// <param name="value">A string containing the name or value to convert.</param>
                 /// <param name="ignoreCase"><see langword="true"/> to ignore case; false to regard case.</param>
                 /// <returns>The enumeration value whose value is represented by the given value.</returns>
-                public static {{enumSymbol.Name}} {{parseMethodName}}(string value, bool ignoreCase = false)
+                public static {{enumName}} {{parseMethodName}}(string value, bool ignoreCase = false)
                 {
                     return {{parseMethodName}}(out _, value: value, ignoreCase: ignoreCase, throwOnFailure: true);
                 }
@@ -441,7 +514,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 /// <param name="ignoreCase"><see langword="true"/> to ignore case; false to regard case.</param>
                 /// <param name="throwOnFailure">Determines whether to throw an <see cref="Exception"/> on errors or not.</param>
                 /// <returns>The enumeration value whose value is represented by the given value.</returns>
-                public static {{enumSymbol.Name}} {{parseMethodName}}(out bool successful, string value, bool ignoreCase = false, bool throwOnFailure = true)
+                public static {{enumName}} {{parseMethodName}}(out bool successful, string value, bool ignoreCase = false, bool throwOnFailure = true)
                 {
                     successful = false;
 
@@ -449,11 +522,11 @@ internal class EnumsEnhanced : IIncrementalGenerator
                     {
                         if (throwOnFailure)
                             throw new {{nameof(ArgumentException)}}("Value can't be null or whitespace!", nameof(value));
-                        
+
                         return default;
                     }
 
-                    {{enumUnderlyingType.Name}} localResult = 0;
+                    {{underlyingName}} localResult = 0;
                     bool parsed = false;
                     string subValue;
                     string originalValue = value;
@@ -464,7 +537,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
 
                     if (char.{{nameof(char.IsDigit)}}(firstChar) || firstChar == '-' || firstChar == '+')
                     {
-                        if({{enumUnderlyingType.Name}}.TryParse(value, NumberStyles.AllowLeadingSign | NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite, null, out var valueNumber))
+                        if({{underlyingName}}.TryParse(value, NumberStyles.AllowLeadingSign | NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite, null, out var valueNumber))
                         {
                             parsed = true;
                             localResult = valueNumber;
@@ -521,16 +594,27 @@ internal class EnumsEnhanced : IIncrementalGenerator
                             throw new {{nameof(ArgumentException)}}($"Could not convert the given value `{originalValue}`.", nameof(value));
                     }
 
-                    return ({{enumSymbol.Name}})localResult;
+                    return ({{enumName}})localResult;
                 }
 
             """);
         }
     }
 
-    private static string GetClassTemplate(EnumDeclarationSyntax eds, ISymbol enumSymbol, out string className)
+    /// <summary>
+    /// Produces the surrounding class template (namespace, usings, partial class) with a
+    /// <c>{CLASS_BODY}</c> placeholder for the generated members.
+    /// </summary>
+    /// <param name="e">The model describing the enum to generate the wrapper class for.</param>
+    /// <param name="hintName">The unique source hint name passed to <see cref="SourceProductionContext.AddSource(string, string)"/>.</param>
+    /// <returns>The class template containing a <c>{CLASS_BODY}</c> placeholder.</returns>
+    private static string GetClassTemplate(EnumToGenerate e, out string hintName)
     {
-        className = $"{enumSymbol.Name}Enhanced";
+        string className = $"{e.Name}Enhanced";
+
+        // Include a sanitized namespace discriminator so same-named enums in different
+        // namespaces don't collide on AddSource.
+        hintName = $"{SanitizeHintName(e.Namespace)}.{className}.g.cs";
 
         return @$"
 
@@ -543,12 +627,12 @@ internal class EnumsEnhanced : IIncrementalGenerator
             using {typeof(StringComparison).Namespace};
             using {typeof(NumberStyles).Namespace};
 
-            namespace {enumSymbol.ContainingNamespace.ToDisplayString()}
+            namespace {e.Namespace}
             {{
                 /// <summary>
-                /// Reflection free extension methods for the <see cref=""{enumSymbol.Name}""/> type.
+                /// Reflection free extension methods for the <see cref=""{e.Name}""/> type.
                 /// </summary>
-                {AccessibilityToAccessModifier(enumSymbol.DeclaredAccessibility)} static partial class {className}
+                {e.AccessModifier} static partial class {className}
                 {{
                     {{CLASS_BODY}}
                 }}
@@ -557,25 +641,230 @@ internal class EnumsEnhanced : IIncrementalGenerator
             #nullable restore
         ";
 
-        static string AccessibilityToAccessModifier(Accessibility accessibility)
+        static string SanitizeHintName(string value)
         {
-            return accessibility switch
-            {
-                Accessibility.Internal or Accessibility.Private => "internal",
-                _ => "public"
-            };
+            var sb = new StringBuilder(value.Length);
+            foreach (char c in value)
+                sb.Append(char.IsLetterOrDigit(c) || c == '.' || c == '_' ? c : '_');
+
+            return sb.Length == 0 ? "global" : sb.ToString();
         }
     }
 }
 
-internal class ServiceNotifications : ISyntaxReceiver
+/// <summary>
+/// Value-equatable model describing an enum to generate extension methods for.
+/// Carrying only equatable primitives lets the incremental pipeline cache between runs.
+/// </summary>
+internal readonly struct EnumToGenerate : IEquatable<EnumToGenerate>
 {
-    /// <inheritdoc/>
-    public void OnVisitSyntaxNode(SyntaxNode syntaxNode)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EnumToGenerate"/> struct.
+    /// </summary>
+    /// <param name="name">The simple name of the enum type.</param>
+    /// <param name="namespace">The display string of the enum's containing namespace.</param>
+    /// <param name="accessModifier">The access modifier to emit for the generated class (<c>public</c> or <c>internal</c>).</param>
+    /// <param name="underlyingTypeName">The name of the enum's underlying integral type.</param>
+    /// <param name="isFlags">Whether the enum is annotated with <see cref="FlagsAttribute"/>.</param>
+    /// <param name="hasUnderlyingType">Whether the underlying type was successfully resolved.</param>
+    /// <param name="members">The enum's members.</param>
+    public EnumToGenerate(
+        string name,
+        string @namespace,
+        string accessModifier,
+        string underlyingTypeName,
+        bool isFlags,
+        bool hasUnderlyingType,
+        EquatableArray<EnumMember> members)
     {
-        if (syntaxNode is EnumDeclarationSyntax eds)
-            DeclaredEnums.Add(eds);
+        Name = name;
+        Namespace = @namespace;
+        AccessModifier = accessModifier;
+        UnderlyingTypeName = underlyingTypeName;
+        IsFlags = isFlags;
+        HasUnderlyingType = hasUnderlyingType;
+        Members = members;
     }
 
-    public List<EnumDeclarationSyntax> DeclaredEnums { get; } = [];
+    /// <summary>Gets the simple name of the enum type.</summary>
+    public string Name { get; }
+
+    /// <summary>Gets the display string of the enum's containing namespace.</summary>
+    public string Namespace { get; }
+
+    /// <summary>Gets the access modifier emitted for the generated class.</summary>
+    public string AccessModifier { get; }
+
+    /// <summary>Gets the name of the enum's underlying integral type.</summary>
+    public string UnderlyingTypeName { get; }
+
+    /// <summary>Gets a value indicating whether the enum is annotated with <see cref="FlagsAttribute"/>.</summary>
+    public bool IsFlags { get; }
+
+    /// <summary>Gets a value indicating whether the underlying type was successfully resolved.</summary>
+    public bool HasUnderlyingType { get; }
+
+    /// <summary>Gets the enum's members.</summary>
+    public EquatableArray<EnumMember> Members { get; }
+
+    /// <inheritdoc/>
+    public bool Equals(EnumToGenerate other)
+    {
+        return Name == other.Name
+            && Namespace == other.Namespace
+            && AccessModifier == other.AccessModifier
+            && UnderlyingTypeName == other.UnderlyingTypeName
+            && IsFlags == other.IsFlags
+            && HasUnderlyingType == other.HasUnderlyingType
+            && Members.Equals(other.Members);
+    }
+
+    /// <inheritdoc/>
+    public override bool Equals(object? obj) => obj is EnumToGenerate other && Equals(other);
+
+    /// <inheritdoc/>
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            int hash = 17;
+            hash = hash * 31 + (Name?.GetHashCode() ?? 0);
+            hash = hash * 31 + (Namespace?.GetHashCode() ?? 0);
+            hash = hash * 31 + (AccessModifier?.GetHashCode() ?? 0);
+            hash = hash * 31 + (UnderlyingTypeName?.GetHashCode() ?? 0);
+            hash = hash * 31 + IsFlags.GetHashCode();
+            hash = hash * 31 + HasUnderlyingType.GetHashCode();
+            hash = hash * 31 + Members.GetHashCode();
+            return hash;
+        }
+    }
+}
+
+/// <summary>
+/// Value-equatable model describing a single enum member.
+/// </summary>
+internal readonly struct EnumMember : IEquatable<EnumMember>
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EnumMember"/> struct.
+    /// </summary>
+    /// <param name="name">The member's name.</param>
+    /// <param name="hasConstantValue">Whether the member has a resolved constant value.</param>
+    /// <param name="constantValue">The boxed constant value, or <see langword="null"/> when unresolved.</param>
+    public EnumMember(string name, bool hasConstantValue, object? constantValue)
+    {
+        Name = name;
+        HasConstantValue = hasConstantValue;
+        ConstantValue = constantValue;
+    }
+
+    /// <summary>Gets the member's name.</summary>
+    public string Name { get; }
+
+    /// <summary>Gets a value indicating whether the member has a resolved constant value.</summary>
+    public bool HasConstantValue { get; }
+
+    /// <summary>
+    /// Gets the boxed constant value. The original primitive runtime type is preserved so that
+    /// ordering/grouping (which unbox via <see cref="Comparer{T}"/>) stay correct for both
+    /// signed and unsigned underlying types.
+    /// </summary>
+    public object? ConstantValue { get; }
+
+    /// <inheritdoc/>
+    public bool Equals(EnumMember other)
+    {
+        return Name == other.Name
+            && HasConstantValue == other.HasConstantValue
+            && Equals(ConstantValue, other.ConstantValue);
+    }
+
+    /// <inheritdoc/>
+    public override bool Equals(object? obj) => obj is EnumMember other && Equals(other);
+
+    /// <inheritdoc/>
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            int hash = 17;
+            hash = hash * 31 + (Name?.GetHashCode() ?? 0);
+            hash = hash * 31 + HasConstantValue.GetHashCode();
+            hash = hash * 31 + (ConstantValue?.GetHashCode() ?? 0);
+            return hash;
+        }
+    }
+}
+
+/// <summary>
+/// A small immutable array wrapper that implements structural equality, so it can be used as a
+/// value in the incremental generator pipeline (<see cref="ImmutableArray{T}"/> compares by
+/// reference and would break caching).
+/// </summary>
+/// <typeparam name="T">The element type, which must itself be value-equatable.</typeparam>
+internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnumerable<T>
+    where T : IEquatable<T>
+{
+    private readonly T[]? _array;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EquatableArray{T}"/> struct.
+    /// </summary>
+    /// <param name="array">The backing array to wrap.</param>
+    public EquatableArray(T[] array) => _array = array;
+
+    /// <summary>Gets the number of elements.</summary>
+    public int Count => _array?.Length ?? 0;
+
+    /// <summary>Gets the element at the specified index.</summary>
+    /// <param name="index">The zero-based element index.</param>
+    /// <returns>The element at <paramref name="index"/>.</returns>
+    public T this[int index] => _array![index];
+
+    /// <inheritdoc/>
+    public bool Equals(EquatableArray<T> other)
+    {
+        if (_array is null)
+            return other._array is null;
+
+        if (other._array is null)
+            return false;
+
+        if (_array.Length != other._array.Length)
+            return false;
+
+        for (int i = 0; i < _array.Length; i++)
+        {
+            if (!_array[i].Equals(other._array[i]))
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public override bool Equals(object? obj) => obj is EquatableArray<T> other && Equals(other);
+
+    /// <inheritdoc/>
+    public override int GetHashCode()
+    {
+        if (_array is null)
+            return 0;
+
+        unchecked
+        {
+            int hash = 17;
+            foreach (var item in _array)
+                hash = hash * 31 + (item?.GetHashCode() ?? 0);
+
+            return hash;
+        }
+    }
+
+    /// <inheritdoc/>
+    public IEnumerator<T> GetEnumerator()
+        => ((IEnumerable<T>)(_array ?? System.Array.Empty<T>())).GetEnumerator();
+
+    /// <inheritdoc/>
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

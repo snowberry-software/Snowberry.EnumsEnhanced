@@ -452,3 +452,7 @@ $RECYCLE.BIN/
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+# Verify received snapshots (transient; never committed)
+*.received.cs
+*.received.txt

@@ -5,6 +5,8 @@ namespace EnumsEnhancedBenchmark.Benchmarks;
 
 [MarkdownExporterAttribute.GitHub]
 [MemoryDiagnoser]
+[CategoriesColumn]
+[BenchmarkCategory("GetValues")]
 [SimpleJob(RuntimeMoniker.Net48)]
 [SimpleJob(RuntimeMoniker.Net90)]
 [SimpleJob(RuntimeMoniker.Net10_0)]

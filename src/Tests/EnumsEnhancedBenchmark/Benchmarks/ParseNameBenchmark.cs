@@ -5,6 +5,8 @@ namespace EnumsEnhancedBenchmark.Benchmarks;
 
 [MarkdownExporterAttribute.GitHub]
 [MemoryDiagnoser]
+[CategoriesColumn]
+[BenchmarkCategory("ParseName")]
 [SimpleJob(RuntimeMoniker.Net48)]
 [SimpleJob(RuntimeMoniker.Net90)]
 [SimpleJob(RuntimeMoniker.Net10_0)]
@@ -16,7 +18,7 @@ public class ParseNameBenchmark
     [Params("TEST1", "TEST6")]
     public string NameValueUpper { get; set; } = "";
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public object Parse_Name()
     {
         return Enum.Parse(typeof(TestEnum), NameValue);

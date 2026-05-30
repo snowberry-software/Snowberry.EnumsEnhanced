@@ -1,12 +1,8 @@
-﻿using BenchmarkDotNet.Running;
-using EnumsEnhancedBenchmark.Benchmarks;
+using BenchmarkDotNet.Running;
 
-//BenchmarkRunner.Run(typeof(Program).Assembly);
-BenchmarkRunner.Run<HasFlagBenchmark>();
-//BenchmarkRunner.Run<GetNamesBenchmark>();
-//BenchmarkRunner.Run<GetNameBenchmark>();
-//BenchmarkRunner.Run<GetValuesBenchmark>();
-//BenchmarkRunner.Run<IsDefinedBenchmark>();
-//BenchmarkRunner.Run<IsDefinedValueBenchmark>();
-//BenchmarkRunner.Run<ParseNameBenchmark>();
-//BenchmarkRunner.Run<ParseValueBenchmark>();
+// Runs any/all benchmarks selected from CLI args, e.g.:
+//   dotnet run -c Release -- --filter *
+//   dotnet run -c Release -- --filter *HasFlag*
+//   dotnet run -c Release -- --anyCategories ToString Parsing
+//   dotnet run -c Release -- --list flat
+BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);

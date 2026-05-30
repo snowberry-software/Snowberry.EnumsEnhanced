@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Verify snapshot files must keep stable LF endings across platforms.
+*.verified.cs text eol=lf
+*.verified.txt text eol=lf
