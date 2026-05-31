@@ -1,0 +1,53 @@
+<Project>
+
+    <PropertyGroup>
+        <Platforms>AnyCPU;x64;x86</Platforms>
+
+        <Authors>Snowberry Software</Authors>
+        <AssemblyVersion>3.1.0.0</AssemblyVersion>
+        <VersionPrefix>$(AssemblyVersion)</VersionPrefix>
+        <!-- <VersionSuffix>alpha</VersionSuffix> -->
+
+        <IsPackable>true</IsPackable>
+
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageTags>source generator, enums, fast, reflection</PackageTags>
+
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <IncludeBuildOutput>true</IncludeBuildOutput>
+        <Copyright>Copyright © $([System.DateTime]::Now.Year) Snowberry Software</Copyright>
+        <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+        <PackageProjectUrl>https://github.com/snowberry-software/Snowberry.EnumsEnhanced</PackageProjectUrl>
+
+        <RepositoryType>git</RepositoryType>
+        <RepositoryUrl>https://github.com/snowberry-software/Snowberry.EnumsEnhanced.git</RepositoryUrl>
+
+        <NukeMarkPackable>true</NukeMarkPackable>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!-- Publish the repository URL in the built .nupkg (in the NuSpec <Repository> element) -->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+
+        <!-- Embed source files that are not tracked by the source control manager in the PDB -->
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+        <!-- Recommended: Embed symbols containing Source Link in the main file (exe/dll) -->
+        <DebugType>embedded</DebugType>
+    </PropertyGroup>
+
+    <!-- Deterministic Builds -->
+    <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(TF_BUILD)' == 'true'">
+        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+
+    <!-- SourceLink -->
+    <ItemGroup>
+        <!-- For GitHub -->
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    </ItemGroup>
+</Project>

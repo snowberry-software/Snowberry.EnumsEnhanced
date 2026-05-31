@@ -49,4 +49,4 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore
       - name: Deploy
-        run: dotnet nuget push "EnumsEnhanced/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push "Snowberry.EnumsEnhanced/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
