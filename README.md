@@ -1,9 +1,9 @@
-[![License](https://img.shields.io/github/license/snowberry-software/EnumsEnhanced)](https://github.com/snowberry-software/EnumsEnhanced/blob/master/LICENSE)
-[![NuGet Version](https://img.shields.io/nuget/v/EnumsEnhanced.svg?logo=nuget)](https://www.nuget.org/packages/EnumsEnhanced/)
+[![License](https://img.shields.io/github/license/snowberry-software/Snowberry.EnumsEnhanced)](https://github.com/snowberry-software/Snowberry.EnumsEnhanced/blob/master/LICENSE)
+[![NuGet Version](https://img.shields.io/nuget/v/Snowberry.EnumsEnhanced.svg?logo=nuget)](https://www.nuget.org/packages/Snowberry.EnumsEnhanced/)
 
-# EnumsEnhanced
+# Snowberry.EnumsEnhanced
 
-`EnumsEnhanced` is a C# [source generator](https://devblogs.microsoft.com/dotnet/introducing-c-source-generators) for generating common (extension) methods for enums without having the cost of the Reflection API (slow and many allocations).
+`Snowberry.EnumsEnhanced` is a C# [source generator](https://devblogs.microsoft.com/dotnet/introducing-c-source-generators) for generating common (extension) methods for enums without having the cost of the Reflection API (slow and many allocations).
 
 Following extension methods will be generated for each enum:
 

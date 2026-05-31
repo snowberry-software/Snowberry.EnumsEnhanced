@@ -17,10 +17,10 @@
         <IncludeBuildOutput>true</IncludeBuildOutput>
         <Copyright>Copyright © $([System.DateTime]::Now.Year) Snowberry Software</Copyright>
         <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
-        <PackageProjectUrl>https://github.com/snowberry-software/EnumsEnhanced</PackageProjectUrl>
+        <PackageProjectUrl>https://github.com/snowberry-software/Snowberry.EnumsEnhanced</PackageProjectUrl>
 
         <RepositoryType>git</RepositoryType>
-        <RepositoryUrl>https://github.com/snowberry-software/EnumsEnhanced.git</RepositoryUrl>
+        <RepositoryUrl>https://github.com/snowberry-software/Snowberry.EnumsEnhanced.git</RepositoryUrl>
 
         <NukeMarkPackable>true</NukeMarkPackable>
     </PropertyGroup>

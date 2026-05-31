@@ -1,6 +1,6 @@
 <Project>
     <PropertyGroup>
         <SignAssembly>true</SignAssembly>
-        <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)EnumsEnhanced.snk</AssemblyOriginatorKeyFile>
+        <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)Snowberry.EnumsEnhanced.snk</AssemblyOriginatorKeyFile>
     </PropertyGroup>
 </Project>
