@@ -18,11 +18,6 @@ internal class EnumsEnhanced : IIncrementalGenerator
     public const string c_TrackingName = "EnumsToGenerate";
 
     /// <summary>
-    /// Name of the generated, hoisted trim-chars field (emitted once per <see cref="FlagsAttribute"/> enum).
-    /// </summary>
-    private const string c_TrimCharsField = "s_flagTrimChars";
-
-    /// <summary>
     /// Diagnostic reported when the underlying type of an enumeration cannot be resolved.
     /// </summary>
     public static readonly DiagnosticDescriptor s_UnderlyingEnumerationTypeNotFound
@@ -154,16 +149,6 @@ internal class EnumsEnhanced : IIncrementalGenerator
 
         const string hasFlagMethodName = "HasFlagFast";
 
-        // Hoisted trim chars: only the flag-decomposition path uses Trim, so emit the field
-        // only for [Flags] enums to avoid an unused-field warning in consumers.
-        if (isFlags)
-        {
-            methodSb.AppendLine($$"""
-
-                private static readonly char[] {{c_TrimCharsField}} = new char[] { ',', ' ' };
-            """);
-        }
-
         // HasFlagFast
         {
             methodSb.AppendLine($$"""
@@ -173,7 +158,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 /// </summary>
                 /// <param name="e">The value of the enum.</param>
                 /// <param name="flag">The flag to check.</param>
-                /// <returns><see langword="true"/> if the bit field or bit fields that are set in flag are also set in the current instance; otherwise, false.</returns>
+                /// <returns><see langword="true"/> if the bit field or bit fields that are set in <paramref name="flag"/> are also set in <paramref name="e"/>; otherwise, <see langword="false"/>.</returns>
                 {{methodImplAttributeText}}
                 public static bool {{hasFlagMethodName}}(this {{enumName}} e, {{enumName}} flag)
                 {
@@ -258,6 +243,8 @@ internal class EnumsEnhanced : IIncrementalGenerator
             methodSb.AppendLine($$"""
 
                 /// <inheritdoc cref="{{isDefinedMethodName}}({{enumName}})"/>
+                /// <param name="value">The name of the enumeration constant.</param>
+                /// <exception cref="ArgumentNullException"><paramref name="value"/> is <see langword="null"/>.</exception>
                 public static bool {{isDefinedMethodName}}(string value)
                 {
                     _ = value ?? throw new ArgumentNullException(nameof(value));
@@ -332,9 +319,8 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 .GroupBy(x => x.ConstantValue);
 
             const string c_ToStringFastInternal = "ToStringFastInternal";
-            GenerateFlagCases(flagCases, enumName, underlyingName, sortedByConstantValueDescGrouped, constantValuesChecked, getNameMethodName);
-            constantValuesChecked.Clear();
-            GenerateFlagCases(flagCasesToString, enumName, underlyingName, sortedByConstantValueDescGrouped, constantValuesChecked, c_ToStringFastInternal);
+            GenerateFlagCases(flagCases, enumName, sortedByConstantValueDescGrouped, useFirstName: true);
+            GenerateFlagCases(flagCasesToString, enumName, sortedByConstantValueDescGrouped, useFirstName: false);
 
             AppendGetNameMethod(methodSb, "public", enumName, underlyingName, getNameMethodName, switchCases, flagCases, isFlags);
             AppendGetNameMethod(methodSb, "private", enumName, underlyingName, c_ToStringFastInternal, switchCasesToString, flagCasesToString, isFlags);
@@ -370,7 +356,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
                     /// Resolves the name of the given enum value.
                     /// </summary>
                     /// <param name="e">The value of a particular enumerated constant in terms of its underlying type.</param>
-                    /// <param name="includeFlagNames">Determines whether the value has flags, so it will return `EnumValue, EnumValue2`.</param>
+                    /// <param name="includeFlagNames">Determines whether the value has flags, so it will return <c>EnumValue, EnumValue2</c>.</param>
                     /// <returns> A string containing the name of the enumerated constant or <see langword="null"/> if the enum has multiple flags set but <paramref name="includeFlagNames"/> is not enabled.</returns>
                     {{accessModifier}} static string? {{methodName}}(this {{enumName}} e, bool includeFlagNames = false)
                     {
@@ -389,60 +375,50 @@ internal class EnumsEnhanced : IIncrementalGenerator
                             //throw new Exception("Enum name could not be found!");
 
 
-                        var flagBuilder = new StringBuilder();
+                        string? flagResult = null;
+                        {{underlyingName}} {{c_CheckedMaskNameCurrent}} = ({{underlyingName}})e;
                         {{flagCases}}
                         if({{c_CheckedMaskNameCurrent}} != default)
                             return (({{underlyingName}})e).ToString();
 
-                        return flagBuilder.ToString().Trim({{c_TrimCharsField}});
+                        return flagResult ?? (({{underlyingName}})e).ToString();
 
                         {{(!writeFlags ? "*/" : "")}}
                     }
                     """);
             }
 
-            static void GenerateFlagCases(StringBuilder flagCasesBuilder,
+            // Emits the greedy flag-decomposition. Flags are matched largest-value-first (so named
+            // composites are consumed greedily) and each matched name is prepended onto a string with a
+            // separator only between entries. This yields BCL-identical ascending output while avoiding a
+            // StringBuilder, a trailing Trim, and any runtime name lookups (names are baked in as nameof
+            // literals). For the common 1-2 flag case this is a single allocation and beats the BCL.
+            static void GenerateFlagCases(
+                StringBuilder flagCasesBuilder,
                 string enumName,
-                string underlyingName,
                 IEnumerable<IGrouping<object?, EnumMember>> fields,
-                List<object> constantValuesChecked,
-                string toStringMethodName)
+                bool useFirstName)
             {
                 const string c_CheckedMaskNameCurrent = "checkedMaskCurrent";
-                const string separator = ", ";
+                const string c_FlagResultName = "flagResult";
 
                 bool foundZero = false;
-                flagCasesBuilder.AppendLine($"{underlyingName} {c_CheckedMaskNameCurrent} = ({underlyingName})e;");
                 foreach (var group in fields)
                 {
-                    var member = group.Last();
+                    object? value = group.Key;
 
-                    string memberRef = $"{enumName}.{member.Name}";
-
-                    if (member.HasConstantValue)
+                    // The zero value never participates in flag composition.
+                    if (!foundZero && value?.ToString() == "0")
                     {
-                        if (!foundZero && member.ConstantValue!.ToString() == "0")
-                        {
-                            foundZero = true;
-                            continue;
-                        }
-
-                        if (constantValuesChecked.Contains(member.ConstantValue!))
-                        {
-                            string skipText = $"// Skipping duplicated constant value: {memberRef} -> {member.ConstantValue}";
-
-                            flagCasesBuilder.AppendLine(skipText);
-                            flagCasesBuilder.AppendLine();
-                            continue;
-                        }
-
-                        constantValuesChecked.Add(member.ConstantValue!);
+                        foundZero = true;
+                        continue;
                     }
 
-                    flagCasesBuilder.AppendLine(@$"if(({c_CheckedMaskNameCurrent} & {member.ConstantValue}) == {member.ConstantValue}) {{");
-                    flagCasesBuilder.AppendLine("\t" + @$"flagBuilder.{nameof(StringBuilder.Insert)}(0, {memberRef}.{toStringMethodName}(false)).{nameof(StringBuilder.Insert)}(0, ""{separator}"");");
-                    flagCasesBuilder.AppendLine("\t" + @$"{c_CheckedMaskNameCurrent} -= {member.ConstantValue}; }}");
-                    flagCasesBuilder.AppendLine();
+                    // GetNameFast uses the first name, ToStringFast uses the last (alias) name.
+                    var member = useFirstName ? group.First() : group.Last();
+                    string nameOfRef = $"nameof({enumName}.{member.Name})";
+
+                    flagCasesBuilder.AppendLine(@$"if(({c_CheckedMaskNameCurrent} & {value}) == {value}) {{ {c_FlagResultName} = {c_FlagResultName} is null ? {nameOfRef} : {nameOfRef} + "", "" + {c_FlagResultName}; {c_CheckedMaskNameCurrent} -= {value}; }}");
                 }
             }
         }
@@ -486,7 +462,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 /// Converts the string representation of the name or numeric value of one or more enumerated constants to an equivalent enumerated object.
                 /// </summary>
                 /// <param name="value">A string containing the name or value to convert.</param>
-                /// <param name="ignoreCase"><see langword="true"/> to ignore case; false to regard case.</param>
+                /// <param name="ignoreCase"><see langword="true"/> to ignore case; <see langword="false"/> to regard case.</param>
                 /// <param name="result">The result of the enumeration constant.</param>
                 /// <returns><see langword="true"/> if the conversion succeeded; <see langword="false"/> otherwise.</returns>
                 public static bool {{tryParseMethodName}}(string value, bool ignoreCase, out {{enumName}} result)
@@ -499,8 +475,9 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 /// Converts the string representation of the name or numeric value of one or more enumerated constants to an equivalent enumerated object.
                 /// </summary>
                 /// <param name="value">A string containing the name or value to convert.</param>
-                /// <param name="ignoreCase"><see langword="true"/> to ignore case; false to regard case.</param>
+                /// <param name="ignoreCase"><see langword="true"/> to ignore case; <see langword="false"/> to regard case.</param>
                 /// <returns>The enumeration value whose value is represented by the given value.</returns>
+                /// <exception cref="ArgumentException"><paramref name="value"/> is <see langword="null"/>, empty, whitespace, or cannot be converted to a defined value.</exception>
                 public static {{enumName}} {{parseMethodName}}(string value, bool ignoreCase = false)
                 {
                     return {{parseMethodName}}(out _, value: value, ignoreCase: ignoreCase, throwOnFailure: true);
@@ -511,9 +488,10 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 /// </summary>
                 /// <param name="successful"><see langword="true"/> if the conversion succeeded; <see langword="false"/> otherwise.</param>
                 /// <param name="value">A string containing the name or value to convert.</param>
-                /// <param name="ignoreCase"><see langword="true"/> to ignore case; false to regard case.</param>
-                /// <param name="throwOnFailure">Determines whether to throw an <see cref="Exception"/> on errors or not.</param>
+                /// <param name="ignoreCase"><see langword="true"/> to ignore case; <see langword="false"/> to regard case.</param>
+                /// <param name="throwOnFailure"><see langword="true"/> to throw on a failed conversion; <see langword="false"/> to return <see langword="default"/> instead.</param>
                 /// <returns>The enumeration value whose value is represented by the given value.</returns>
+                /// <exception cref="ArgumentException"><paramref name="throwOnFailure"/> is <see langword="true"/> and <paramref name="value"/> is <see langword="null"/>, empty, whitespace, or cannot be converted to a defined value.</exception>
                 public static {{enumName}} {{parseMethodName}}(out bool successful, string value, bool ignoreCase = false, bool throwOnFailure = true)
                 {
                     successful = false;
@@ -654,7 +632,6 @@ internal class EnumsEnhanced : IIncrementalGenerator
 
 /// <summary>
 /// Value-equatable model describing an enum to generate extension methods for.
-/// Carrying only equatable primitives lets the incremental pipeline cache between runs.
 /// </summary>
 internal readonly struct EnumToGenerate : IEquatable<EnumToGenerate>
 {
@@ -765,9 +742,8 @@ internal readonly struct EnumMember : IEquatable<EnumMember>
     public bool HasConstantValue { get; }
 
     /// <summary>
-    /// Gets the boxed constant value. The original primitive runtime type is preserved so that
-    /// ordering/grouping (which unbox via <see cref="Comparer{T}"/>) stay correct for both
-    /// signed and unsigned underlying types.
+    /// Gets the boxed constant value of the member in its original primitive runtime type, or
+    /// <see langword="null"/> when the member has no resolved constant value.
     /// </summary>
     public object? ConstantValue { get; }
 
@@ -797,9 +773,8 @@ internal readonly struct EnumMember : IEquatable<EnumMember>
 }
 
 /// <summary>
-/// A small immutable array wrapper that implements structural equality, so it can be used as a
-/// value in the incremental generator pipeline (<see cref="ImmutableArray{T}"/> compares by
-/// reference and would break caching).
+/// An immutable array wrapper that implements structural (element-by-element) equality, unlike
+/// <see cref="ImmutableArray{T}"/> which compares by reference.
 /// </summary>
 /// <typeparam name="T">The element type, which must itself be value-equatable.</typeparam>
 internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnumerable<T>

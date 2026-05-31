@@ -21,7 +21,7 @@
     /// </summary>
     /// <param name="e">The value of the enum.</param>
     /// <param name="flag">The flag to check.</param>
-    /// <returns><see langword="true"/> if the bit field or bit fields that are set in flag are also set in the current instance; otherwise, false.</returns>
+    /// <returns><see langword="true"/> if the bit field or bit fields that are set in <paramref name="flag"/> are also set in <paramref name="e"/>; otherwise, <see langword="false"/>.</returns>
     #if NETCOREAPP3_0_OR_GREATER
 #else
 [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
@@ -62,6 +62,8 @@
 
 
     /// <inheritdoc cref="IsDefinedFast(Huge)"/>
+    /// <param name="value">The name of the enumeration constant.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="value"/> is <see langword="null"/>.</exception>
     public static bool IsDefinedFast(string value)
     {
         _ = value ?? throw new ArgumentNullException(nameof(value));
@@ -115,7 +117,7 @@ case Huge.Zero:
 /// Resolves the name of the given enum value.
 /// </summary>
 /// <param name="e">The value of a particular enumerated constant in terms of its underlying type.</param>
-/// <param name="includeFlagNames">Determines whether the value has flags, so it will return `EnumValue, EnumValue2`.</param>
+/// <param name="includeFlagNames">Determines whether the value has flags, so it will return <c>EnumValue, EnumValue2</c>.</param>
 /// <returns> A string containing the name of the enumerated constant or <see langword="null"/> if the enum has multiple flags set but <paramref name="includeFlagNames"/> is not enabled.</returns>
 public static string? GetNameFast(this Huge e, bool includeFlagNames = false)
 {
@@ -143,21 +145,15 @@ case Huge.Max:
         //throw new Exception("Enum name could not be found!");
 
 
-    var flagBuilder = new StringBuilder();
+    string? flagResult = null;
     UInt64 checkedMaskCurrent = (UInt64)e;
-if((checkedMaskCurrent & 18446744073709551615) == 18446744073709551615) {
-	flagBuilder.Insert(0, Huge.Max.GetNameFast(false)).Insert(0, ", ");
-	checkedMaskCurrent -= 18446744073709551615; }
-
-if((checkedMaskCurrent & 9223372036854775808) == 9223372036854775808) {
-	flagBuilder.Insert(0, Huge.Mid.GetNameFast(false)).Insert(0, ", ");
-	checkedMaskCurrent -= 9223372036854775808; }
-
+    if((checkedMaskCurrent & 18446744073709551615) == 18446744073709551615) { flagResult = flagResult is null ? nameof(Huge.Max) : nameof(Huge.Max) + ", " + flagResult; checkedMaskCurrent -= 18446744073709551615; }
+if((checkedMaskCurrent & 9223372036854775808) == 9223372036854775808) { flagResult = flagResult is null ? nameof(Huge.Mid) : nameof(Huge.Mid) + ", " + flagResult; checkedMaskCurrent -= 9223372036854775808; }
 
     if(checkedMaskCurrent != default)
         return ((UInt64)e).ToString();
 
-    return flagBuilder.ToString().Trim(s_flagTrimChars);
+    return flagResult ?? ((UInt64)e).ToString();
 
     */
 }
@@ -165,7 +161,7 @@ if((checkedMaskCurrent & 9223372036854775808) == 9223372036854775808) {
 /// Resolves the name of the given enum value.
 /// </summary>
 /// <param name="e">The value of a particular enumerated constant in terms of its underlying type.</param>
-/// <param name="includeFlagNames">Determines whether the value has flags, so it will return `EnumValue, EnumValue2`.</param>
+/// <param name="includeFlagNames">Determines whether the value has flags, so it will return <c>EnumValue, EnumValue2</c>.</param>
 /// <returns> A string containing the name of the enumerated constant or <see langword="null"/> if the enum has multiple flags set but <paramref name="includeFlagNames"/> is not enabled.</returns>
 private static string? ToStringFastInternal(this Huge e, bool includeFlagNames = false)
 {
@@ -193,21 +189,15 @@ case Huge.Max:
         //throw new Exception("Enum name could not be found!");
 
 
-    var flagBuilder = new StringBuilder();
+    string? flagResult = null;
     UInt64 checkedMaskCurrent = (UInt64)e;
-if((checkedMaskCurrent & 18446744073709551615) == 18446744073709551615) {
-	flagBuilder.Insert(0, Huge.Max.ToStringFastInternal(false)).Insert(0, ", ");
-	checkedMaskCurrent -= 18446744073709551615; }
-
-if((checkedMaskCurrent & 9223372036854775808) == 9223372036854775808) {
-	flagBuilder.Insert(0, Huge.Mid.ToStringFastInternal(false)).Insert(0, ", ");
-	checkedMaskCurrent -= 9223372036854775808; }
-
+    if((checkedMaskCurrent & 18446744073709551615) == 18446744073709551615) { flagResult = flagResult is null ? nameof(Huge.Max) : nameof(Huge.Max) + ", " + flagResult; checkedMaskCurrent -= 18446744073709551615; }
+if((checkedMaskCurrent & 9223372036854775808) == 9223372036854775808) { flagResult = flagResult is null ? nameof(Huge.Mid) : nameof(Huge.Mid) + ", " + flagResult; checkedMaskCurrent -= 9223372036854775808; }
 
     if(checkedMaskCurrent != default)
         return ((UInt64)e).ToString();
 
-    return flagBuilder.ToString().Trim(s_flagTrimChars);
+    return flagResult ?? ((UInt64)e).ToString();
 
     */
 }
@@ -231,7 +221,7 @@ if((checkedMaskCurrent & 9223372036854775808) == 9223372036854775808) {
     /// Converts the string representation of the name or numeric value of one or more enumerated constants to an equivalent enumerated object.
     /// </summary>
     /// <param name="value">A string containing the name or value to convert.</param>
-    /// <param name="ignoreCase"><see langword="true"/> to ignore case; false to regard case.</param>
+    /// <param name="ignoreCase"><see langword="true"/> to ignore case; <see langword="false"/> to regard case.</param>
     /// <param name="result">The result of the enumeration constant.</param>
     /// <returns><see langword="true"/> if the conversion succeeded; <see langword="false"/> otherwise.</returns>
     public static bool TryParseFast(string value, bool ignoreCase, out Huge result)
@@ -244,8 +234,9 @@ if((checkedMaskCurrent & 9223372036854775808) == 9223372036854775808) {
     /// Converts the string representation of the name or numeric value of one or more enumerated constants to an equivalent enumerated object.
     /// </summary>
     /// <param name="value">A string containing the name or value to convert.</param>
-    /// <param name="ignoreCase"><see langword="true"/> to ignore case; false to regard case.</param>
+    /// <param name="ignoreCase"><see langword="true"/> to ignore case; <see langword="false"/> to regard case.</param>
     /// <returns>The enumeration value whose value is represented by the given value.</returns>
+    /// <exception cref="ArgumentException"><paramref name="value"/> is <see langword="null"/>, empty, whitespace, or cannot be converted to a defined value.</exception>
     public static Huge ParseFast(string value, bool ignoreCase = false)
     {
         return ParseFast(out _, value: value, ignoreCase: ignoreCase, throwOnFailure: true);
@@ -256,9 +247,10 @@ if((checkedMaskCurrent & 9223372036854775808) == 9223372036854775808) {
     /// </summary>
     /// <param name="successful"><see langword="true"/> if the conversion succeeded; <see langword="false"/> otherwise.</param>
     /// <param name="value">A string containing the name or value to convert.</param>
-    /// <param name="ignoreCase"><see langword="true"/> to ignore case; false to regard case.</param>
-    /// <param name="throwOnFailure">Determines whether to throw an <see cref="Exception"/> on errors or not.</param>
+    /// <param name="ignoreCase"><see langword="true"/> to ignore case; <see langword="false"/> to regard case.</param>
+    /// <param name="throwOnFailure"><see langword="true"/> to throw on a failed conversion; <see langword="false"/> to return <see langword="default"/> instead.</param>
     /// <returns>The enumeration value whose value is represented by the given value.</returns>
+    /// <exception cref="ArgumentException"><paramref name="throwOnFailure"/> is <see langword="true"/> and <paramref name="value"/> is <see langword="null"/>, empty, whitespace, or cannot be converted to a defined value.</exception>
     public static Huge ParseFast(out bool successful, string value, bool ignoreCase = false, bool throwOnFailure = true)
     {
         successful = false;
