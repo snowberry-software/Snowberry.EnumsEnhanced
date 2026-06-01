@@ -1,3 +1,11 @@
+v.3.0.0.1
+- Renamed the package, assembly and namespace to `Snowberry.EnumsEnhanced` (breaking: install `Snowberry.EnumsEnhanced` instead of `EnumsEnhanced`).
+- Fixed incremental generator caching by using a value-equatable model, so editing one enum no longer regenerates all of them.
+- Rewrote the flag decomposition in `GetNameFast`/`ToStringFast` to be faster with fewer allocations while exactly matching the built-in `Enum` output, including the zero value on enums without a zero-named member.
+- Pinned the Roslyn dependency (Microsoft.CodeAnalysis.CSharp 4.8.0) for deterministic builds; minimum tooling is now VS 2022 17.8 / .NET SDK 8.0.100.
+- Completed the XML documentation on the generated methods (parameter, return and exception tags).
+- Added source-generator snapshot and incrementality tests, and improved the benchmark suite.
+
 v.2.1.0
 - Updated to .NET 10.
 - Optimized generated code for better performance and closer match to built-in Enum methods.
