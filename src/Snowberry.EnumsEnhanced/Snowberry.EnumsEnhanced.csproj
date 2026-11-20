@@ -21,6 +21,13 @@
 
 	<Import Project="..\NuGetPackage.props" />
 
+	<PropertyGroup>
+		<!-- Ship the generator only under analyzers/ (not lib/) so consumers never reference it or copy it to their output. -->
+		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+		<DevelopmentDependency>true</DevelopmentDependency>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<!-- Package the generator in the analyzer directory of the nuget package -->
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
@@ -36,7 +43,8 @@
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
+		<!-- PrivateAssets="all": the host compiler provides Roslyn, so it must not flow to consumers as a dependency. -->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
 	</ItemGroup>
 
 	<ItemGroup>
