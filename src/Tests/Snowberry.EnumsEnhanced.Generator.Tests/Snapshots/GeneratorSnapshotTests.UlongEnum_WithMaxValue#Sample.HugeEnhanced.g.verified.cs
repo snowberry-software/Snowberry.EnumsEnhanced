@@ -5,7 +5,6 @@
             using System.Runtime.CompilerServices;
             using System.Collections.Generic;
             using System;
-            using System;
             using System.Globalization;
 
             namespace Sample
@@ -289,11 +288,11 @@ if((checkedMaskCurrent & 9223372036854775808) == 9223372036854775808) { flagResu
 
             if(endIndex < 0)
             {
-                // No next separator; use the remainder as the next value.
+                // No next separator; use the remainder as the next value and end the loop.
                 subValue = value.Trim();
-                value = null!;
+                value = string.Empty;
             }
-            else if(endIndex != value!.Length - 1)
+            else if(endIndex != value.Length - 1)
             {
                 // Found a separator before the last char.
                 subValue = value.Substring(0, endIndex).Trim();
