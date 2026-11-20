@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
-using Microsoft.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
 namespace Snowberry.EnumsEnhanced.Generator.Tests;
@@ -32,7 +32,7 @@ internal static class TestHelper
     /// </summary>
     public static GeneratorDriver CreateDriver()
     {
-        var generator = new Snowberry.EnumsEnhanced.EnumsEnhanced();
+        var generator = new EnumsEnhanced();
 
         return CSharpGeneratorDriver.Create(
             generators: new[] { generator.AsSourceGenerator() },
@@ -132,6 +132,6 @@ internal static class TestHelper
     public static ImmutableArray<IncrementalGeneratorRunStep> GetTrackedSteps(GeneratorDriver driver)
     {
         var result = driver.GetRunResult().Results.Single();
-        return result.TrackedSteps[Snowberry.EnumsEnhanced.EnumsEnhanced.c_TrackingName];
+        return result.TrackedSteps[EnumsEnhanced.c_TrackingName];
     }
 }

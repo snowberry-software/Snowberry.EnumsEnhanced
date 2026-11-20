@@ -52,7 +52,7 @@ public class GeneratedCodeDiagnosticsTests
             compilation.SyntaxTrees.Single(),
             CSharpSyntaxTree.ParseText(c_Source, parseOptions, cancellationToken: TestContext.Current.CancellationToken));
 
-        CSharpGeneratorDriver.Create([new Snowberry.EnumsEnhanced.EnumsEnhanced().AsSourceGenerator()], parseOptions: parseOptions)
+        CSharpGeneratorDriver.Create([new EnumsEnhanced().AsSourceGenerator()], parseOptions: parseOptions)
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
 
         generatorDiagnostics.Should().BeEmpty();

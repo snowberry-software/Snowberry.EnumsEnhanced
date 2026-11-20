@@ -106,7 +106,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 underlyingTypeName: string.Empty,
                 isFlags: false,
                 hasUnderlyingType: false,
-                members: new EquatableArray<EnumMember>(System.Array.Empty<EnumMember>()));
+                members: new EquatableArray<EnumMember>(Array.Empty<EnumMember>()));
         }
 
         bool isFlags = symbol
@@ -867,7 +867,7 @@ internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnu
 
     /// <inheritdoc/>
     public IEnumerator<T> GetEnumerator()
-        => ((IEnumerable<T>)(_array ?? System.Array.Empty<T>())).GetEnumerator();
+        => ((IEnumerable<T>)(_array ?? Array.Empty<T>())).GetEnumerator();
 
     /// <inheritdoc/>
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
