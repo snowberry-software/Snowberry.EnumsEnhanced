@@ -10,19 +10,19 @@ public class UnderlyingTypeTests
     {
         var max = GappedEnum.Max; // 255
 
-        Assert.Equal(byte.MaxValue, (byte)max);
-        Assert.Equal(max.ToString(), max.ToStringFast());
-        Assert.Equal("Max", max.ToStringFast());
+        ((byte)max).Should().Be(byte.MaxValue);
+        max.ToStringFast().Should().Be(max.ToString());
+        max.ToStringFast().Should().Be("Max");
     }
 
     [Fact]
     public void ByteEnum_NumericParsing_WorksWithinRange()
     {
         var parsed = GappedEnumEnhanced.ParseFast("255");
-        Assert.Equal(GappedEnum.Max, parsed);
+        parsed.Should().Be(GappedEnum.Max);
 
         var parsed2 = GappedEnumEnhanced.ParseFast("0");
-        Assert.Equal(GappedEnum.Min, parsed2);
+        parsed2.Should().Be(GappedEnum.Min);
     }
 
     [Fact]
@@ -30,15 +30,15 @@ public class UnderlyingTypeTests
     {
         var neg = SignedByteFlagsEnum.NegativeBit; // -128
 
-        Assert.Equal(sbyte.MinValue, (sbyte)neg);
-        Assert.Equal(neg.ToString(), neg.ToStringFast());
+        ((sbyte)neg).Should().Be(sbyte.MinValue);
+        neg.ToStringFast().Should().Be(neg.ToString());
     }
 
     [Fact]
     public void SByteEnum_NumericParsing_HandlesNegative()
     {
         var parsed = SignedByteFlagsEnumEnhanced.ParseFast("-128");
-        Assert.Equal(SignedByteFlagsEnum.NegativeBit, parsed);
+        parsed.Should().Be(SignedByteFlagsEnum.NegativeBit);
     }
 
     [Fact]
@@ -46,19 +46,19 @@ public class UnderlyingTypeTests
     {
         var neg = TestEnum2.Test1; // -2
 
-        Assert.Equal((short)-2, (short)neg);
-        Assert.Equal(neg.ToString(), neg.ToStringFast());
-        Assert.Equal("Test1", neg.ToStringFast());
+        ((short)neg).Should().Be((short)-2);
+        neg.ToStringFast().Should().Be(neg.ToString());
+        neg.ToStringFast().Should().Be("Test1");
     }
 
     [Fact]
     public void ShortEnum_Parse_NegativeWithPlus()
     {
         var pos = TestEnum2Enhanced.ParseFast("+1");
-        Assert.Equal(TestEnum2.Test2, pos);
+        pos.Should().Be(TestEnum2.Test2);
 
         var neg = TestEnum2Enhanced.ParseFast("-2");
-        Assert.Equal(TestEnum2.Test1, neg);
+        neg.Should().Be(TestEnum2.Test1);
     }
 
     [Fact]
@@ -67,21 +67,21 @@ public class UnderlyingTypeTests
         var min = NegativeValuesEnum.VeryNegative;
         var max = NegativeValuesEnum.VeryPositive;
 
-        Assert.Equal(int.MinValue, (int)min);
-        Assert.Equal(int.MaxValue, (int)max);
+        ((int)min).Should().Be(int.MinValue);
+        ((int)max).Should().Be(int.MaxValue);
 
-        Assert.Equal(min.ToString(), min.ToStringFast());
-        Assert.Equal(max.ToString(), max.ToStringFast());
+        min.ToStringFast().Should().Be(min.ToString());
+        max.ToStringFast().Should().Be(max.ToString());
     }
 
     [Fact]
     public void IntEnum_Parse_ExtremeValues()
     {
         var min = NegativeValuesEnumEnhanced.ParseFast(int.MinValue.ToString());
-        Assert.Equal(NegativeValuesEnum.VeryNegative, min);
+        min.Should().Be(NegativeValuesEnum.VeryNegative);
 
         var max = NegativeValuesEnumEnhanced.ParseFast(int.MaxValue.ToString());
-        Assert.Equal(NegativeValuesEnum.VeryPositive, max);
+        max.Should().Be(NegativeValuesEnum.VeryPositive);
     }
 
     [Fact]
@@ -89,8 +89,8 @@ public class UnderlyingTypeTests
     {
         var highBit = LongFlagsEnum.Bit62;
 
-        Assert.Equal(1L << 62, (long)highBit);
-        Assert.Equal(highBit.ToString(), highBit.ToStringFast());
+        ((long)highBit).Should().Be(1L << 62);
+        highBit.ToStringFast().Should().Be(highBit.ToString());
     }
 
     [Fact]
@@ -98,15 +98,15 @@ public class UnderlyingTypeTests
     {
         var negBit = LongFlagsEnum.HighBit; // long.MinValue
 
-        Assert.Equal(long.MinValue, (long)negBit);
-        Assert.Equal(negBit.ToString(), negBit.ToStringFast());
+        ((long)negBit).Should().Be(long.MinValue);
+        negBit.ToStringFast().Should().Be(negBit.ToString());
     }
 
     [Fact]
     public void LongEnum_Parse_LargeValues()
     {
         var large = LongFlagsEnumEnhanced.ParseFast((1L << 50).ToString());
-        Assert.Equal(LongFlagsEnum.Bit50, large);
+        large.Should().Be(LongFlagsEnum.Bit50);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class UnderlyingTypeTests
         string? result = combo.ToStringFast();
         string? expected = combo.ToString();
 
-        Assert.Equal(expected, result);
+        result.Should().Be(expected);
     }
 
     [Fact]
@@ -125,15 +125,15 @@ public class UnderlyingTypeTests
     {
         var max = UlongEnum.Max;
 
-        Assert.Equal(ulong.MaxValue, (ulong)max);
-        Assert.Equal(max.ToString(), max.ToStringFast());
+        ((ulong)max).Should().Be(ulong.MaxValue);
+        max.ToStringFast().Should().Be(max.ToString());
     }
 
     [Fact]
     public void ULongEnum_Parse_VeryLargeValue()
     {
         var parsed = UlongEnumEnhanced.ParseFast(ulong.MaxValue.ToString());
-        Assert.Equal(UlongEnum.Max, parsed);
+        parsed.Should().Be(UlongEnum.Max);
     }
 
     [Fact]
@@ -144,8 +144,8 @@ public class UnderlyingTypeTests
         string? result = all.ToStringFast();
         string? expected = all.ToString();
 
-        Assert.Equal(expected, result);
-        Assert.Equal("All", result);
+        result.Should().Be(expected);
+        result.Should().Be("All");
     }
 
     [Fact]
@@ -154,23 +154,23 @@ public class UnderlyingTypeTests
         var lower = ByteFlagsEnum.LowerNibble;
         var upper = ByteFlagsEnum.UpperNibble;
 
-        Assert.Equal("LowerNibble", lower.ToStringFast());
-        Assert.Equal("UpperNibble", upper.ToStringFast());
-        Assert.Equal(lower.ToString(), lower.ToStringFast());
-        Assert.Equal(upper.ToString(), upper.ToStringFast());
+        lower.ToStringFast().Should().Be("LowerNibble");
+        upper.ToStringFast().Should().Be("UpperNibble");
+        lower.ToStringFast().Should().Be(lower.ToString());
+        upper.ToStringFast().Should().Be(upper.ToString());
     }
 
     [Fact]
     public void AllUnderlyingTypes_IsDefined_WorksCorrectly()
     {
-        Assert.True(GappedEnumEnhanced.IsDefinedFast(GappedEnum.Large));
-        Assert.True(SignedByteFlagsEnumEnhanced.IsDefinedFast(SignedByteFlagsEnum.Bit0));
-        Assert.True(LongFlagsEnumEnhanced.IsDefinedFast(LongFlagsEnum.Bit40));
-        Assert.True(UlongEnumEnhanced.IsDefinedFast(UlongEnum.Medium));
-        Assert.True(TestEnum2Enhanced.IsDefinedFast(TestEnum2.Test1));
+        GappedEnumEnhanced.IsDefinedFast(GappedEnum.Large).Should().BeTrue();
+        SignedByteFlagsEnumEnhanced.IsDefinedFast(SignedByteFlagsEnum.Bit0).Should().BeTrue();
+        LongFlagsEnumEnhanced.IsDefinedFast(LongFlagsEnum.Bit40).Should().BeTrue();
+        UlongEnumEnhanced.IsDefinedFast(UlongEnum.Medium).Should().BeTrue();
+        TestEnum2Enhanced.IsDefinedFast(TestEnum2.Test1).Should().BeTrue();
 
-        Assert.False(GappedEnumEnhanced.IsDefinedFast((GappedEnum)99));
-        Assert.False(TestEnum2Enhanced.IsDefinedFast((TestEnum2)50));
+        GappedEnumEnhanced.IsDefinedFast((GappedEnum)99).Should().BeFalse();
+        TestEnum2Enhanced.IsDefinedFast((TestEnum2)50).Should().BeFalse();
     }
 
     [Fact]
@@ -182,11 +182,11 @@ public class UnderlyingTypeTests
         var longValues = LongFlagsEnumEnhanced.GetValuesFast();
         var ulongValues = UlongEnumEnhanced.GetValuesFast();
 
-        Assert.Equal(Enum.GetValues(typeof(GappedEnum)).Length, byteValues.Length);
-        Assert.Equal(Enum.GetValues(typeof(SignedByteFlagsEnum)).Length, sbyteValues.Length);
-        Assert.Equal(Enum.GetValues(typeof(TestEnum2)).Length, shortValues.Length);
-        Assert.Equal(Enum.GetValues(typeof(LongFlagsEnum)).Length, longValues.Length);
-        Assert.Equal(Enum.GetValues(typeof(UlongEnum)).Length, ulongValues.Length);
+        byteValues.Length.Should().Be(Enum.GetValues(typeof(GappedEnum)).Length);
+        sbyteValues.Length.Should().Be(Enum.GetValues(typeof(SignedByteFlagsEnum)).Length);
+        shortValues.Length.Should().Be(Enum.GetValues(typeof(TestEnum2)).Length);
+        longValues.Length.Should().Be(Enum.GetValues(typeof(LongFlagsEnum)).Length);
+        ulongValues.Length.Should().Be(Enum.GetValues(typeof(UlongEnum)).Length);
     }
 
     [Fact]
@@ -195,26 +195,26 @@ public class UnderlyingTypeTests
         // Byte
         var byteVal = GappedEnum.Medium;
         var byteParsed = GappedEnumEnhanced.ParseFast(byteVal.ToStringFast()!);
-        Assert.Equal(byteVal, byteParsed);
+        byteParsed.Should().Be(byteVal);
 
         // SByte
         var sbyteVal = SignedByteFlagsEnum.Bit3;
         var sbyteParsed = SignedByteFlagsEnumEnhanced.ParseFast(sbyteVal.ToStringFast()!);
-        Assert.Equal(sbyteVal, sbyteParsed);
+        sbyteParsed.Should().Be(sbyteVal);
 
         // Short
         var shortVal = TestEnum2.Test1;
         var shortParsed = TestEnum2Enhanced.ParseFast(shortVal.ToStringFast()!);
-        Assert.Equal(shortVal, shortParsed);
+        shortParsed.Should().Be(shortVal);
 
         // Long
         var longVal = LongFlagsEnum.Bit30;
         var longParsed = LongFlagsEnumEnhanced.ParseFast(longVal.ToStringFast()!);
-        Assert.Equal(longVal, longParsed);
+        longParsed.Should().Be(longVal);
 
         // ULong
         var ulongVal = UlongEnum.Large;
         var ulongParsed = UlongEnumEnhanced.ParseFast(ulongVal.ToStringFast()!);
-        Assert.Equal(ulongVal, ulongParsed);
+        ulongParsed.Should().Be(ulongVal);
     }
 }

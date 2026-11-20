@@ -30,23 +30,23 @@ public class GeneratorIncrementalityTests
     {
         var compilation1 = TestHelper.CreateCompilation(c_Source);
 
-        var driver = TestHelper.CreateDriver().RunGenerators(compilation1);
+        var driver = TestHelper.CreateDriver().RunGenerators(compilation1, TestContext.Current.CancellationToken);
 
         // Add an unrelated, non-enum syntax tree. The enum declaration is untouched, so the
         // tracked transform output must be reused (Cached/Unchanged) on the second run.
         var compilation2 = compilation1.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Sample { public class Unrelated { } }"));
+            CSharpSyntaxTree.ParseText("namespace Sample { public class Unrelated { } }", cancellationToken: TestContext.Current.CancellationToken));
 
-        driver = driver.RunGenerators(compilation2);
+        driver = driver.RunGenerators(compilation2, TestContext.Current.CancellationToken);
 
         var steps = TestHelper.GetTrackedSteps(driver);
 
-        Assert.NotEmpty(steps);
-        Assert.All(steps, step =>
-            Assert.All(step.Outputs, output =>
-                Assert.True(
-                    output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
-                    $"Expected Cached/Unchanged but got {output.Reason}. Incremental caching is broken.")));
+        steps.Should().NotBeEmpty();
+        steps.Should().AllSatisfy(step =>
+            step.Outputs.Should().AllSatisfy(output =>
+                output.Reason.Should().BeOneOf(
+                    [IncrementalStepRunReason.Cached, IncrementalStepRunReason.Unchanged],
+                    "the tracked step must be reused (otherwise incremental caching is broken)")));
     }
 
     [Fact]
@@ -54,18 +54,18 @@ public class GeneratorIncrementalityTests
     {
         var compilation = TestHelper.CreateCompilation(c_Source);
 
-        var first = TestHelper.CreateDriver().RunGenerators(compilation);
+        var first = TestHelper.CreateDriver().RunGenerators(compilation, TestContext.Current.CancellationToken);
         var firstResult = first.GetRunResult().Results.Single();
 
         // Re-run the same driver against the same compilation: outputs must be cached.
-        var second = first.RunGenerators(compilation);
+        var second = first.RunGenerators(compilation, TestContext.Current.CancellationToken);
         var steps = TestHelper.GetTrackedSteps(second);
 
-        Assert.Single(firstResult.GeneratedSources);
-        Assert.All(steps, step =>
-            Assert.All(step.Outputs, output =>
-                Assert.True(
-                    output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
-                    $"Expected Cached/Unchanged but got {output.Reason}.")));
+        firstResult.GeneratedSources.Should().ContainSingle();
+        steps.Should().AllSatisfy(step =>
+            step.Outputs.Should().AllSatisfy(output =>
+                output.Reason.Should().BeOneOf(
+                    [IncrementalStepRunReason.Cached, IncrementalStepRunReason.Unchanged],
+                    "the tracked step must be reused")));
     }
 }

@@ -1,4 +1,11 @@
-v.3.0.0.1
+v.3.1.1
+- Fixed the package pulling Roslyn into consuming projects: it no longer declares a dependency on Microsoft.CodeAnalysis.CSharp, ships the generator only as an analyzer (not under lib/), and is marked as a development dependency.
+- Fixed generated code for enums in the global namespace, which failed to compile.
+- Fixed generated code on C# 7.3 (the default for .NET Framework projects): nullable annotations are now only emitted for C# 8 and later.
+- Removed a duplicate `using System;` from the generated code (warning CS0105).
+- Build: moved to the .NET 11 SDK, Central Package Management, xUnit v3 and AwesomeAssertions, replaced Verify with built-in snapshot tests, added a test that the generated code compiles without warnings, and switched NuGet publishing to Trusted Publishing.
+
+v.3.1.0
 - Renamed the package, assembly and namespace to `Snowberry.EnumsEnhanced` (breaking: install `Snowberry.EnumsEnhanced` instead of `EnumsEnhanced`).
 - Fixed incremental generator caching by using a value-equatable model, so editing one enum no longer regenerates all of them.
 - Rewrote the flag decomposition in `GetNameFast`/`ToStringFast` to be faster with fewer allocations while exactly matching the built-in `Enum` output, including the zero value on enums without a zero-named member.

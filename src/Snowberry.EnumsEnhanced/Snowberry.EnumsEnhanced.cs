@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Snowberry.EnumsEnhanced;
@@ -37,8 +38,13 @@ internal class EnumsEnhanced : IIncrementalGenerator
             .Where(static m => m is not null)
             .WithTrackingName(c_TrackingName);
 
-        context.RegisterSourceOutput(enumDeclarationsProvider, static (sourceProductionContext, model) =>
+        // Nullable annotations (#nullable, string?) only compile on C# 8 and later; .NET Framework projects default to C# 7.3.
+        var supportsNullableProvider = context.ParseOptionsProvider
+            .Select(static (options, _) => options is CSharpParseOptions { LanguageVersion: >= LanguageVersion.CSharp8 });
+
+        context.RegisterSourceOutput(enumDeclarationsProvider.Combine(supportsNullableProvider), static (sourceProductionContext, input) =>
         {
+            var (model, supportsNullable) = input;
             var enumToGenerate = model!.Value;
 
             if (!enumToGenerate.HasUnderlyingType)
@@ -57,6 +63,9 @@ internal class EnumsEnhanced : IIncrementalGenerator
 
             string classCode = GetClassTemplate(enumToGenerate, out string hintName)
                 .Replace("{CLASS_BODY}", sb.ToString());
+
+            if (!supportsNullable)
+                classCode = RemoveNullableAnnotations(classCode);
 
             sourceProductionContext.AddSource(hintName, classCode.Trim());
         });
@@ -79,7 +88,10 @@ internal class EnumsEnhanced : IIncrementalGenerator
             return null;
 
         string accessModifier = AccessibilityToAccessModifier(symbol.DeclaredAccessibility);
-        string @namespace = symbol.ContainingNamespace.ToDisplayString();
+        // Enums in the global namespace get no namespace declaration (ToDisplayString would yield "<global namespace>").
+        string @namespace = symbol.ContainingNamespace.IsGlobalNamespace
+            ? string.Empty
+            : symbol.ContainingNamespace.ToDisplayString();
 
         var enumUnderlyingType = symbol.EnumUnderlyingType;
 
@@ -94,7 +106,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 underlyingTypeName: string.Empty,
                 isFlags: false,
                 hasUnderlyingType: false,
-                members: new EquatableArray<EnumMember>(System.Array.Empty<EnumMember>()));
+                members: new EquatableArray<EnumMember>(Array.Empty<EnumMember>()));
         }
 
         bool isFlags = symbol
@@ -530,11 +542,11 @@ internal class EnumsEnhanced : IIncrementalGenerator
 
                         if(endIndex < 0)
                         {
-                            // No next separator; use the remainder as the next value.
+                            // No next separator; use the remainder as the next value and end the loop.
                             subValue = value.Trim();
-                            value = null!;
+                            value = string.Empty;
                         }
-                        else if(endIndex != value!.Length - 1)
+                        else if(endIndex != value.Length - 1)
                         {
                             // Found a separator before the last char.
                             subValue = value.Substring(0, endIndex).Trim();
@@ -580,6 +592,20 @@ internal class EnumsEnhanced : IIncrementalGenerator
     }
 
     /// <summary>
+    /// Strips the nullable annotations from generated code for consumers compiling with a language version below C# 8,
+    /// where <c>#nullable</c> and <c>string?</c> are compile errors.
+    /// </summary>
+    /// <param name="code">The generated source, which only uses the <c>#nullable</c> directives and <c>string?</c> annotations.</param>
+    /// <returns>The source without nullable annotations.</returns>
+    private static string RemoveNullableAnnotations(string code)
+    {
+        return code
+            .Replace("#nullable enable", string.Empty)
+            .Replace("#nullable restore", string.Empty)
+            .Replace("string? ", "string ");
+    }
+
+    /// <summary>
     /// Produces the surrounding class template (namespace, usings, partial class) with a
     /// <c>{CLASS_BODY}</c> placeholder for the generated members.
     /// </summary>
@@ -594,6 +620,11 @@ internal class EnumsEnhanced : IIncrementalGenerator
         // namespaces don't collide on AddSource.
         hintName = $"{SanitizeHintName(e.Namespace)}.{className}.g.cs";
 
+        // An empty namespace means the enum lives in the global namespace, so the class is emitted there too.
+        bool hasNamespace = e.Namespace.Length > 0;
+        string namespaceOpen = hasNamespace ? $"namespace {e.Namespace}\n            {{" : string.Empty;
+        string namespaceClose = hasNamespace ? "}" : string.Empty;
+
         return @$"
 
             #nullable enable
@@ -602,11 +633,9 @@ internal class EnumsEnhanced : IIncrementalGenerator
             using {typeof(Unsafe).Namespace};
             using {typeof(IEnumerable<>).Namespace};
             using {typeof(ArgumentNullException).Namespace};
-            using {typeof(StringComparison).Namespace};
             using {typeof(NumberStyles).Namespace};
 
-            namespace {e.Namespace}
-            {{
+            {namespaceOpen}
                 /// <summary>
                 /// Reflection free extension methods for the <see cref=""{e.Name}""/> type.
                 /// </summary>
@@ -614,7 +643,7 @@ internal class EnumsEnhanced : IIncrementalGenerator
                 {{
                     {{CLASS_BODY}}
                 }}
-            }}
+            {namespaceClose}
 
             #nullable restore
         ";
@@ -838,7 +867,7 @@ internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnu
 
     /// <inheritdoc/>
     public IEnumerator<T> GetEnumerator()
-        => ((IEnumerable<T>)(_array ?? System.Array.Empty<T>())).GetEnumerator();
+        => ((IEnumerable<T>)(_array ?? Array.Empty<T>())).GetEnumerator();
 
     /// <inheritdoc/>
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();

@@ -1,5 +1,4 @@
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 
 namespace Snowberry.EnumsEnhanced.Benchmark.Benchmarks;
 
@@ -7,9 +6,6 @@ namespace Snowberry.EnumsEnhanced.Benchmark.Benchmarks;
 [MemoryDiagnoser]
 [CategoriesColumn]
 [BenchmarkCategory("ToString")]
-[SimpleJob(RuntimeMoniker.Net48)]
-[SimpleJob(RuntimeMoniker.Net90)]
-[SimpleJob(RuntimeMoniker.Net10_0)]
 public class ToStringFastBenchmark
 {
     // Single defined value and a multi-flag combination (exercises the flag-decomposition path).

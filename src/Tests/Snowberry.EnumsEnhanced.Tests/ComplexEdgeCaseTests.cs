@@ -12,10 +12,9 @@ public class ComplexEdgeCaseTests
         var alias = DuplicateValuesEnum.SecondAlias; // Also value = 2
 
         // GetName should return first defined name
-        Assert.Equal(Enum.GetName(typeof(DuplicateValuesEnum), value),
-                     value.GetNameFast(false));
-        Assert.Equal(nameof(DuplicateValuesEnum.Second), value.GetNameFast(false));
-        Assert.Equal(nameof(DuplicateValuesEnum.Second), alias.GetNameFast(false));
+        value.GetNameFast(false).Should().Be(Enum.GetName(typeof(DuplicateValuesEnum), value));
+        value.GetNameFast(false).Should().Be(nameof(DuplicateValuesEnum.Second));
+        alias.GetNameFast(false).Should().Be(nameof(DuplicateValuesEnum.Second));
     }
 
     [Fact]
@@ -24,8 +23,8 @@ public class ComplexEdgeCaseTests
         var value = DuplicateValuesEnum.Third; // Value = 3
 
         // ToString should return last defined name
-        Assert.Equal(value.ToString(), value.ToStringFast());
-        Assert.Equal(nameof(DuplicateValuesEnum.Third), value.ToStringFast());
+        value.ToStringFast().Should().Be(value.ToString());
+        value.ToStringFast().Should().Be(nameof(DuplicateValuesEnum.Third));
     }
 
     [Fact]
@@ -34,9 +33,9 @@ public class ComplexEdgeCaseTests
         var parsed1 = DuplicateValuesEnumEnhanced.ParseFast(nameof(DuplicateValuesEnum.Second));
         var parsed2 = DuplicateValuesEnumEnhanced.ParseFast(nameof(DuplicateValuesEnum.SecondAlias));
 
-        Assert.Equal(parsed1, parsed2);
-        Assert.Equal(DuplicateValuesEnum.Second, parsed1);
-        Assert.Equal((int)DuplicateValuesEnum.Second, (int)parsed2);
+        parsed2.Should().Be(parsed1);
+        parsed1.Should().Be(DuplicateValuesEnum.Second);
+        ((int)parsed2).Should().Be((int)DuplicateValuesEnum.Second);
     }
 
     [Fact]
@@ -45,8 +44,8 @@ public class ComplexEdgeCaseTests
         var value = DuplicateFlagsEnum.Flag1;
         var alias = DuplicateFlagsEnum.Flag1Alias;
 
-        Assert.Equal(nameof(DuplicateFlagsEnum.Flag1), value.GetNameFast(false));
-        Assert.Equal(nameof(DuplicateFlagsEnum.Flag1), alias.GetNameFast(false));
+        value.GetNameFast(false).Should().Be(nameof(DuplicateFlagsEnum.Flag1));
+        alias.GetNameFast(false).Should().Be(nameof(DuplicateFlagsEnum.Flag1));
     }
 
     [Fact]
@@ -56,9 +55,9 @@ public class ComplexEdgeCaseTests
         var alias = DuplicateFlagsEnum.CombinedAlias; // Also 3
 
         // Both should return the composite name (last defined)
-        Assert.Equal(combined.ToString(), combined.ToStringFast());
-        Assert.Equal(alias.ToString(), alias.ToStringFast());
-        Assert.Equal(nameof(DuplicateFlagsEnum.CombinedAlias), combined.ToStringFast());
+        combined.ToStringFast().Should().Be(combined.ToString());
+        alias.ToStringFast().Should().Be(alias.ToString());
+        combined.ToStringFast().Should().Be(nameof(DuplicateFlagsEnum.CombinedAlias));
     }
 
     [Fact]
@@ -66,17 +65,17 @@ public class ComplexEdgeCaseTests
     {
         var value = SingleValueEnum.OnlyValue;
 
-        Assert.Equal(value.ToString(), value.ToStringFast());
-        Assert.Equal(nameof(SingleValueEnum.OnlyValue), value.ToStringFast());
-        Assert.Equal(Enum.GetName(typeof(SingleValueEnum), value), value.GetNameFast(false));
+        value.ToStringFast().Should().Be(value.ToString());
+        value.ToStringFast().Should().Be(nameof(SingleValueEnum.OnlyValue));
+        value.GetNameFast(false).Should().Be(Enum.GetName(typeof(SingleValueEnum), value));
     }
 
     [Fact]
     public void SingleValue_GetValues_ReturnsOne()
     {
         var values = SingleValueEnumEnhanced.GetValuesFast();
-        Assert.Single(values);
-        Assert.Equal(SingleValueEnum.OnlyValue, values[0]);
+        values.Should().ContainSingle();
+        values[0].Should().Be(SingleValueEnum.OnlyValue);
     }
 
     [Fact]
@@ -84,8 +83,8 @@ public class ComplexEdgeCaseTests
     {
         var nothing = EmptyEnum.Nothing;
 
-        Assert.Equal(nameof(EmptyEnum.Nothing), nothing.ToStringFast());
-        Assert.Equal(nothing.ToString(), nothing.ToStringFast());
+        nothing.ToStringFast().Should().Be(nameof(EmptyEnum.Nothing));
+        nothing.ToStringFast().Should().Be(nothing.ToString());
     }
 
     [Fact]
@@ -95,16 +94,16 @@ public class ComplexEdgeCaseTests
         var combined = (PseudoFlagsEnum)((int)PseudoFlagsEnum.One | (int)PseudoFlagsEnum.Two);
 
         // Should return numeric, not decompose
-        Assert.Equal(combined.ToString(), combined.ToStringFast());
-        Assert.Equal("3", combined.ToStringFast());
+        combined.ToStringFast().Should().Be(combined.ToString());
+        combined.ToStringFast().Should().Be("3");
     }
 
     [Fact]
     public void PseudoFlags_DefinedValues_ReturnNames()
     {
-        Assert.Equal(nameof(PseudoFlagsEnum.Four), PseudoFlagsEnum.Four.ToStringFast());
-        Assert.Equal(nameof(PseudoFlagsEnum.Sixteen), PseudoFlagsEnum.Sixteen.ToStringFast());
-        Assert.Equal(PseudoFlagsEnum.Four.ToString(), PseudoFlagsEnum.Four.ToStringFast());
+        PseudoFlagsEnum.Four.ToStringFast().Should().Be(nameof(PseudoFlagsEnum.Four));
+        PseudoFlagsEnum.Sixteen.ToStringFast().Should().Be(nameof(PseudoFlagsEnum.Sixteen));
+        PseudoFlagsEnum.Four.ToStringFast().Should().Be(PseudoFlagsEnum.Four.ToString());
     }
 
     [Fact]
@@ -115,8 +114,8 @@ public class ComplexEdgeCaseTests
         string? result = combo.ToStringFast();
         string? expected = combo.ToString();
 
-        Assert.Equal(expected, result);
-        Assert.Contains(", ", result);
+        result.Should().Be(expected);
+        result.Should().Contain(", ");
     }
 
     [Fact]
@@ -128,7 +127,7 @@ public class ComplexEdgeCaseTests
         string? result = withExtra.ToStringFast();
         string? expected = withExtra.ToString();
 
-        Assert.Equal(expected, result);
+        result.Should().Be(expected);
     }
 
     [Fact]
@@ -137,8 +136,8 @@ public class ComplexEdgeCaseTests
         var abc = OverlappingFlagsEnum.ABC;
 
         // Should return "ABC", not "A, B, C"
-        Assert.Equal(nameof(OverlappingFlagsEnum.ABC), abc.ToStringFast());
-        Assert.Equal(abc.ToString(), abc.ToStringFast());
+        abc.ToStringFast().Should().Be(nameof(OverlappingFlagsEnum.ABC));
+        abc.ToStringFast().Should().Be(abc.ToString());
     }
 
     [Fact]
@@ -147,8 +146,8 @@ public class ComplexEdgeCaseTests
         var parsed1 = OverlappingFlagsEnumEnhanced.ParseFast(nameof(OverlappingFlagsEnum.ABC));
         var parsed2 = OverlappingFlagsEnumEnhanced.ParseFast($"{nameof(OverlappingFlagsEnum.A)}, {nameof(OverlappingFlagsEnum.B)}, {nameof(OverlappingFlagsEnum.C)}");
 
-        Assert.Equal(parsed1, parsed2);
-        Assert.Equal(OverlappingFlagsEnum.ABC, parsed1);
+        parsed2.Should().Be(parsed1);
+        parsed1.Should().Be(OverlappingFlagsEnum.ABC);
     }
 
     [Fact]
@@ -158,9 +157,9 @@ public class ComplexEdgeCaseTests
         var abc = OverlappingFlagsEnum.ABC;
         var bcd = OverlappingFlagsEnum.BCD;
 
-        Assert.NotEqual(abc.ToStringFast(), bcd.ToStringFast());
-        Assert.Equal(nameof(OverlappingFlagsEnum.ABC), abc.ToStringFast());
-        Assert.Equal(nameof(OverlappingFlagsEnum.BCD), bcd.ToStringFast());
+        bcd.ToStringFast().Should().NotBe(abc.ToStringFast());
+        abc.ToStringFast().Should().Be(nameof(OverlappingFlagsEnum.ABC));
+        bcd.ToStringFast().Should().Be(nameof(OverlappingFlagsEnum.BCD));
     }
 
     [Fact]
@@ -168,15 +167,15 @@ public class ComplexEdgeCaseTests
     {
         var gapped = (GappedEnum)25; // Between Small (10) and Medium (50)
 
-        Assert.Equal(gapped.ToString(), gapped.ToStringFast());
-        Assert.Equal("25", gapped.ToStringFast());
+        gapped.ToStringFast().Should().Be(gapped.ToString());
+        gapped.ToStringFast().Should().Be("25");
     }
 
     [Fact]
     public void GappedEnum_Parse_WorksForGaps()
     {
         var parsed = GappedEnumEnhanced.ParseFast("25");
-        Assert.Equal((GappedEnum)25, parsed);
+        parsed.Should().Be((GappedEnum)25);
     }
 
     [Fact]
@@ -185,8 +184,8 @@ public class ComplexEdgeCaseTests
         // Third, ThirdAlias, and ThirdAlias2 all equal 3
         var value = DuplicateValuesEnum.Third;
 
-        Assert.Equal(nameof(DuplicateValuesEnum.Third), value.ToStringFast());
-        Assert.Equal(value.ToString(), value.ToStringFast());
+        value.ToStringFast().Should().Be(nameof(DuplicateValuesEnum.Third));
+        value.ToStringFast().Should().Be(value.ToString());
     }
 
     [Fact]
@@ -202,7 +201,7 @@ public class ComplexEdgeCaseTests
         foreach (string? name in names)
         {
             var parsed = DuplicateValuesEnumEnhanced.ParseFast(name);
-            Assert.Equal(3, (int)parsed);
+            ((int)parsed).Should().Be(3);
         }
     }
 
@@ -211,11 +210,11 @@ public class ComplexEdgeCaseTests
     {
         string[] names = DuplicateValuesEnumEnhanced.GetNamesFast();
 
-        Assert.Contains(nameof(DuplicateValuesEnum.Second), names);
-        Assert.Contains(nameof(DuplicateValuesEnum.SecondAlias), names);
-        Assert.Contains(nameof(DuplicateValuesEnum.Third), names);
-        Assert.Contains(nameof(DuplicateValuesEnum.ThirdAlias), names);
-        Assert.Contains(nameof(DuplicateValuesEnum.ThirdAlias2), names);
+        names.Should().Contain(nameof(DuplicateValuesEnum.Second));
+        names.Should().Contain(nameof(DuplicateValuesEnum.SecondAlias));
+        names.Should().Contain(nameof(DuplicateValuesEnum.Third));
+        names.Should().Contain(nameof(DuplicateValuesEnum.ThirdAlias));
+        names.Should().Contain(nameof(DuplicateValuesEnum.ThirdAlias2));
     }
 
     [Fact]
@@ -224,26 +223,26 @@ public class ComplexEdgeCaseTests
         var values = DuplicateValuesEnumEnhanced.GetValuesFast();
 
         // Should have 6 entries even though some have duplicate values
-        Assert.Equal(6, values.Length);
+        values.Length.Should().Be(6);
     }
 
     [Fact]
     public void IsDefined_Name_TrueForAllDuplicates()
     {
-        Assert.True(DuplicateValuesEnumEnhanced.IsDefinedFast(nameof(DuplicateValuesEnum.Second)));
-        Assert.True(DuplicateValuesEnumEnhanced.IsDefinedFast(nameof(DuplicateValuesEnum.SecondAlias)));
-        Assert.True(DuplicateValuesEnumEnhanced.IsDefinedFast(nameof(DuplicateValuesEnum.Third)));
-        Assert.True(DuplicateValuesEnumEnhanced.IsDefinedFast(nameof(DuplicateValuesEnum.ThirdAlias)));
-        Assert.True(DuplicateValuesEnumEnhanced.IsDefinedFast(nameof(DuplicateValuesEnum.ThirdAlias2)));
+        DuplicateValuesEnumEnhanced.IsDefinedFast(nameof(DuplicateValuesEnum.Second)).Should().BeTrue();
+        DuplicateValuesEnumEnhanced.IsDefinedFast(nameof(DuplicateValuesEnum.SecondAlias)).Should().BeTrue();
+        DuplicateValuesEnumEnhanced.IsDefinedFast(nameof(DuplicateValuesEnum.Third)).Should().BeTrue();
+        DuplicateValuesEnumEnhanced.IsDefinedFast(nameof(DuplicateValuesEnum.ThirdAlias)).Should().BeTrue();
+        DuplicateValuesEnumEnhanced.IsDefinedFast(nameof(DuplicateValuesEnum.ThirdAlias2)).Should().BeTrue();
     }
 
     [Fact]
     public void IsDefined_Value_TrueForDefinedValues()
     {
         // Even though value 2 has two names, IsDefined(2) is true
-        Assert.True(DuplicateValuesEnumEnhanced.IsDefinedFast((DuplicateValuesEnum)2));
-        Assert.True(DuplicateValuesEnumEnhanced.IsDefinedFast((DuplicateValuesEnum)3));
-        Assert.False(DuplicateValuesEnumEnhanced.IsDefinedFast((DuplicateValuesEnum)99));
+        DuplicateValuesEnumEnhanced.IsDefinedFast((DuplicateValuesEnum)2).Should().BeTrue();
+        DuplicateValuesEnumEnhanced.IsDefinedFast((DuplicateValuesEnum)3).Should().BeTrue();
+        DuplicateValuesEnumEnhanced.IsDefinedFast((DuplicateValuesEnum)99).Should().BeFalse();
     }
 
     [Fact]
@@ -251,14 +250,14 @@ public class ComplexEdgeCaseTests
     {
         var composite = CompositeFlagsEnum.ReadWriteExecute;
 
-        Assert.True(composite.HasFlagFast(CompositeFlagsEnum.Read));
-        Assert.True(composite.HasFlagFast(CompositeFlagsEnum.Write));
-        Assert.True(composite.HasFlagFast(CompositeFlagsEnum.Execute));
-        Assert.False(composite.HasFlagFast(CompositeFlagsEnum.Delete));
+        composite.HasFlagFast(CompositeFlagsEnum.Read).Should().BeTrue();
+        composite.HasFlagFast(CompositeFlagsEnum.Write).Should().BeTrue();
+        composite.HasFlagFast(CompositeFlagsEnum.Execute).Should().BeTrue();
+        composite.HasFlagFast(CompositeFlagsEnum.Delete).Should().BeFalse();
 
         // Also works for other composites
-        Assert.True(composite.HasFlagFast(CompositeFlagsEnum.ReadWrite));
-        Assert.True(composite.HasFlagFast(CompositeFlagsEnum.ReadExecute));
+        composite.HasFlagFast(CompositeFlagsEnum.ReadWrite).Should().BeTrue();
+        composite.HasFlagFast(CompositeFlagsEnum.ReadExecute).Should().BeTrue();
     }
 
     [Fact]
@@ -267,22 +266,22 @@ public class ComplexEdgeCaseTests
         var combo = ByteFlagsEnum.None | ByteFlagsEnum.Bit1 | ByteFlagsEnum.Bit2;
         string? result = combo.ToStringFast();
 
-        Assert.DoesNotContain(nameof(ByteFlagsEnum.None), result);
-        Assert.Contains(nameof(ByteFlagsEnum.Bit1), result);
-        Assert.Contains(nameof(ByteFlagsEnum.Bit2), result);
+        result.Should().NotContain(nameof(ByteFlagsEnum.None));
+        result.Should().Contain(nameof(ByteFlagsEnum.Bit1));
+        result.Should().Contain(nameof(ByteFlagsEnum.Bit2));
     }
 
     [Fact]
     public void AllEnums_CaseInsensitiveParsing_Works()
     {
         var sequential = SequentialEnumEnhanced.ParseFast("FIRST", ignoreCase: true);
-        Assert.Equal(SequentialEnum.First, sequential);
+        sequential.Should().Be(SequentialEnum.First);
 
         var gapped = GappedEnumEnhanced.ParseFast("large", ignoreCase: true);
-        Assert.Equal(GappedEnum.Large, gapped);
+        gapped.Should().Be(GappedEnum.Large);
 
         var flags = ByteFlagsEnumEnhanced.ParseFast("bit0, BIT1", ignoreCase: true);
-        Assert.Equal(ByteFlagsEnum.Bit0 | ByteFlagsEnum.Bit1, flags);
+        flags.Should().Be(ByteFlagsEnum.Bit0 | ByteFlagsEnum.Bit1);
     }
 
     [Fact]
@@ -291,18 +290,18 @@ public class ComplexEdgeCaseTests
         // Sequential
         bool success1 = SequentialEnumEnhanced.TryParseFast(nameof(SequentialEnum.Third), false, out var parsed1);
         bool expected1 = Enum.TryParse(typeof(SequentialEnum), nameof(SequentialEnum.Third), false, out object? exp1);
-        Assert.Equal(expected1, success1);
-        Assert.Equal(exp1, parsed1);
+        success1.Should().Be(expected1);
+        ((object)parsed1).Should().Be(exp1);
 
         // Gapped
         bool success2 = GappedEnumEnhanced.TryParseFast("50", false, out var parsed2);
         bool expected2 = Enum.TryParse(typeof(GappedEnum), "50", false, out object? exp2);
-        Assert.Equal(expected2, success2);
-        Assert.Equal(exp2, parsed2);
+        success2.Should().Be(expected2);
+        ((object)parsed2).Should().Be(exp2);
 
         // Flags
         bool success3 = ByteFlagsEnumEnhanced.TryParseFast("InvalidName", false, out var parsed3);
         bool expected3 = Enum.TryParse(typeof(ByteFlagsEnum), "InvalidName", false, out object? exp3);
-        Assert.Equal(expected3, success3);
+        success3.Should().Be(expected3);
     }
 }

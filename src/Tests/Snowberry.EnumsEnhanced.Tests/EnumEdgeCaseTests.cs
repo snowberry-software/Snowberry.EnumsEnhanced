@@ -13,18 +13,18 @@ public class EnumEdgeCaseTests
         string? resultFast = combo.ToStringFast();
         string? resultDefault = combo.ToString();
 
-        Assert.NotNull(resultFast);
-        Assert.Equal(resultDefault, resultFast);
-        Assert.DoesNotContain("Test0", resultFast);
+        resultFast.Should().NotBeNull();
+        resultFast.Should().Be(resultDefault);
+        resultFast.Should().NotContain("Test0");
     }
 
     [Fact]
     public void ZeroValueAlone_ReturnsZeroName()
     {
         var zero = TestEnum.Test0;
-        Assert.Equal(zero.ToString(), zero.ToStringFast());
-        Assert.Equal("Test0", zero.ToStringFast());
-        Assert.Equal(Enum.GetName(typeof(TestEnum), zero), zero.GetNameFast(false));
+        zero.ToStringFast().Should().Be(zero.ToString());
+        zero.ToStringFast().Should().Be("Test0");
+        zero.GetNameFast(false).Should().Be(Enum.GetName(typeof(TestEnum), zero));
     }
 
     [Fact]
@@ -34,14 +34,14 @@ public class EnumEdgeCaseTests
         var value = TestEnum.Test1;
 
         // GetNameFast should return first (matches Enum.GetName)
-        Assert.Equal(Enum.GetName(typeof(TestEnum), value), value.GetNameFast(false));
-        Assert.Equal("Test1", value.GetNameFast(false));
-        Assert.Equal("Test1", TestEnum.Test_1.GetNameFast(false));
+        value.GetNameFast(false).Should().Be(Enum.GetName(typeof(TestEnum), value));
+        value.GetNameFast(false).Should().Be("Test1");
+        TestEnum.Test_1.GetNameFast(false).Should().Be("Test1");
 
         // ToStringFast should return last (matches ToString)
-        Assert.Equal(value.ToString(), value.ToStringFast());
-        Assert.Equal("Test_1", value.ToStringFast());
-        Assert.Equal("Test_1", TestEnum.Test_1.ToStringFast());
+        value.ToStringFast().Should().Be(value.ToString());
+        value.ToStringFast().Should().Be("Test_1");
+        TestEnum.Test_1.ToStringFast().Should().Be("Test_1");
     }
 
     [Fact]
@@ -51,9 +51,9 @@ public class EnumEdgeCaseTests
         var combo = TestEnum.Test1 | TestEnum.Test2;
         string? result = combo.GetNameFast(true);
 
-        Assert.NotNull(result);
-        Assert.Contains("Test1", result);
-        Assert.DoesNotContain("Test_1", result);
+        result.Should().NotBeNull();
+        result.Should().Contain("Test1");
+        result.Should().NotContain("Test_1");
     }
 
     [Fact]
@@ -64,8 +64,8 @@ public class EnumEdgeCaseTests
         string? resultFast = combo.ToStringFast();
         string? resultDefault = combo.ToString();
 
-        Assert.NotNull(resultFast);
-        Assert.Equal(resultDefault, resultFast);
+        resultFast.Should().NotBeNull();
+        resultFast.Should().Be(resultDefault);
     }
 
     [Fact]
@@ -76,10 +76,10 @@ public class EnumEdgeCaseTests
         string? resultFast = allBits.ToStringFast();
         string? resultDefault = allBits.ToString();
 
-        Assert.NotNull(resultFast);
-        Assert.Equal(resultDefault, resultFast);
+        resultFast.Should().NotBeNull();
+        resultFast.Should().Be(resultDefault);
         // Should contain multiple flags or numeric value
-        Assert.NotEmpty(resultFast);
+        resultFast.Should().NotBeEmpty();
     }
 
     [Fact]
@@ -87,11 +87,11 @@ public class EnumEdgeCaseTests
     {
         var negValue = TestEnum2.Test1; // -2
 
-        Assert.Equal("-2", ((short)negValue).ToString());
-        Assert.Equal(Enum.GetName(typeof(TestEnum2), negValue), negValue.GetNameFast(false));
-        Assert.Equal("Test1", negValue.GetNameFast(false));
-        Assert.Equal(negValue.ToString(), negValue.ToStringFast());
-        Assert.Equal("Test1", negValue.ToStringFast());
+        ((short)negValue).ToString().Should().Be("-2");
+        negValue.GetNameFast(false).Should().Be(Enum.GetName(typeof(TestEnum2), negValue));
+        negValue.GetNameFast(false).Should().Be("Test1");
+        negValue.ToStringFast().Should().Be(negValue.ToString());
+        negValue.ToStringFast().Should().Be("Test1");
     }
 
     [Fact]
@@ -104,12 +104,12 @@ public class EnumEdgeCaseTests
         string? toString = undefined.ToStringFast();
         string? toStringDefault = undefined.ToString();
 
-        Assert.Equal(Enum.GetName(typeof(TestEnum), undefined), getName);
-        Assert.Null(getName);
-        Assert.NotNull(getNameFlags);
-        Assert.NotNull(toString);
+        getName.Should().Be(Enum.GetName(typeof(TestEnum), undefined));
+        getName.Should().BeNull();
+        getNameFlags.Should().NotBeNull();
+        toString.Should().NotBeNull();
         // Should match default behavior
-        Assert.Equal(toStringDefault, toString);
+        toString.Should().Be(toStringDefault);
     }
 
     [Fact]
@@ -120,8 +120,8 @@ public class EnumEdgeCaseTests
         string? resultFast = partiallyDefined.ToStringFast();
         string? resultDefault = partiallyDefined.ToString();
 
-        Assert.NotNull(resultFast);
-        Assert.Equal(resultDefault, resultFast);
+        resultFast.Should().NotBeNull();
+        resultFast.Should().Be(resultDefault);
     }
 
     [Fact]
@@ -131,8 +131,8 @@ public class EnumEdgeCaseTests
         string? resultFast = maxInt.ToStringFast();
         string? resultDefault = maxInt.ToString();
 
-        Assert.NotNull(resultFast);
-        Assert.Equal(resultDefault, resultFast);
+        resultFast.Should().NotBeNull();
+        resultFast.Should().Be(resultDefault);
     }
 
     [Fact]
@@ -142,8 +142,8 @@ public class EnumEdgeCaseTests
         string? resultFast = minInt.ToStringFast();
         string? resultDefault = minInt.ToString();
 
-        Assert.NotNull(resultFast);
-        Assert.Equal(resultDefault, resultFast);
+        resultFast.Should().NotBeNull();
+        resultFast.Should().Be(resultDefault);
     }
 
     [Fact]
@@ -152,9 +152,9 @@ public class EnumEdgeCaseTests
         var parsed1 = TestEnumEnhanced.ParseFast("Test1");
         var parsed2 = TestEnumEnhanced.ParseFast("Test_1");
 
-        Assert.Equal(parsed1, parsed2);
-        Assert.Equal((int)parsed1, (int)parsed2);
-        Assert.Equal(1, (int)parsed1);
+        parsed2.Should().Be(parsed1);
+        ((int)parsed2).Should().Be((int)parsed1);
+        ((int)parsed1).Should().Be(1);
     }
 
     [Fact]
@@ -163,15 +163,15 @@ public class EnumEdgeCaseTests
         var result1 = TestEnumEnhanced.ParseFast("Test1, Test2");
         var result2 = TestEnumEnhanced.ParseFast("Test_1, Test2");
 
-        Assert.Equal(result1, result2);
-        Assert.Equal(TestEnum.Test1 | TestEnum.Test2, result1);
+        result2.Should().Be(result1);
+        result1.Should().Be(TestEnum.Test1 | TestEnum.Test2);
     }
 
     [Fact]
     public void ParseFast_SingleFlagMultipleTimes_Idempotent()
     {
         var result = TestEnumEnhanced.ParseFast("Test1, Test1, Test1");
-        Assert.Equal(TestEnum.Test1, result);
+        result.Should().Be(TestEnum.Test1);
     }
 
     [Fact]
@@ -181,8 +181,8 @@ public class EnumEdgeCaseTests
         var result2 = TestEnumEnhanced.ParseFast("Test4, Test2, Test1");
         var result3 = TestEnumEnhanced.ParseFast("Test2, Test1, Test4");
 
-        Assert.Equal(result1, result2);
-        Assert.Equal(result2, result3);
+        result2.Should().Be(result1);
+        result3.Should().Be(result2);
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class EnumEdgeCaseTests
         foreach (string? testCase in testCases)
         {
             var result = TestEnumEnhanced.ParseFast(testCase);
-            Assert.Equal(expected, result);
+            result.Should().Be(expected);
         }
     }
 
@@ -211,7 +211,7 @@ public class EnumEdgeCaseTests
     public void ParseFast_NumericValueWithLeadingPlus_Works()
     {
         var result = TestEnumEnhanced.ParseFast("+1");
-        Assert.Equal(TestEnum.Test1, result);
+        result.Should().Be(TestEnum.Test1);
     }
 
     [Fact]
@@ -220,8 +220,8 @@ public class EnumEdgeCaseTests
         var originalResult = Enum.Parse<TestEnum>(" 1 ");
         var result = TestEnumEnhanced.ParseFast(" 1 ");
 
-        Assert.Equal(originalResult, result);
-        Assert.Equal(TestEnum.Test1, result);
+        result.Should().Be(originalResult);
+        result.Should().Be(TestEnum.Test1);
     }
 
     [Fact]
@@ -230,15 +230,15 @@ public class EnumEdgeCaseTests
         var originalResult = Enum.Parse<TestEnum2>(" -2 ");
         var result = TestEnum2Enhanced.ParseFast(" -2 ");
 
-        Assert.Equal(originalResult, result);
-        Assert.Equal(TestEnum2.Test1, result);
+        result.Should().Be(originalResult);
+        result.Should().Be(TestEnum2.Test1);
     }
 
     [Fact]
     public void TryParseFast_EmptyString_ReturnsFalse()
     {
         bool result = TestEnumEnhanced.TryParseFast("", false, out var value);
-        Assert.False(result);
+        result.Should().BeFalse();
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public class EnumEdgeCaseTests
         foreach (string? testCase in testCases)
         {
             bool result = TestEnumEnhanced.TryParseFast(testCase, false, out _);
-            Assert.False(result);
+            result.Should().BeFalse();
         }
     }
 
@@ -271,7 +271,7 @@ public class EnumEdgeCaseTests
         foreach (string? format in invalidFormats)
         {
             bool result = TestEnumEnhanced.TryParseFast(format, false, out _);
-            Assert.False(result);
+            result.Should().BeFalse();
         }
     }
 
@@ -290,8 +290,8 @@ public class EnumEdgeCaseTests
 
         foreach (var value in values)
         {
-            Assert.True(value.HasFlagFast(TestEnum.Test0));
-            Assert.Equal(value.HasFlag(TestEnum.Test0), value.HasFlagFast(TestEnum.Test0));
+            value.HasFlagFast(TestEnum.Test0).Should().BeTrue();
+            value.HasFlagFast(TestEnum.Test0).Should().Be(value.HasFlag(TestEnum.Test0));
         }
     }
 
@@ -301,8 +301,8 @@ public class EnumEdgeCaseTests
         var values = TestEnumEnhanced.GetValuesFast();
         foreach (var value in values)
         {
-            Assert.True(value.HasFlagFast(value));
-            Assert.Equal(value.HasFlag(value), value.HasFlagFast(value));
+            value.HasFlagFast(value).Should().BeTrue();
+            value.HasFlagFast(value).Should().Be(value.HasFlag(value));
         }
     }
 
@@ -312,8 +312,8 @@ public class EnumEdgeCaseTests
         var small = TestEnum.Test1;
         var large = TestEnum.Test1 | TestEnum.Test2;
 
-        Assert.False(small.HasFlagFast(large));
-        Assert.Equal(small.HasFlag(large), small.HasFlagFast(large));
+        small.HasFlagFast(large).Should().BeFalse();
+        small.HasFlagFast(large).Should().Be(small.HasFlag(large));
     }
 
     [Fact]
@@ -323,27 +323,27 @@ public class EnumEdgeCaseTests
         var value2 = TestEnum.Test2 | TestEnum.Test4;
 
         // value1 does not have all bits of value2
-        Assert.False(value1.HasFlagFast(value2));
-        Assert.Equal(value1.HasFlag(value2), value1.HasFlagFast(value2));
+        value1.HasFlagFast(value2).Should().BeFalse();
+        value1.HasFlagFast(value2).Should().Be(value1.HasFlag(value2));
 
         // But it does have Test2
-        Assert.True(value1.HasFlagFast(TestEnum.Test2));
+        value1.HasFlagFast(TestEnum.Test2).Should().BeTrue();
     }
 
     [Fact]
     public void IsDefinedFast_UndefinedValue_ReturnsFalse()
     {
         var undefined = (TestEnum)999;
-        Assert.False(TestEnumEnhanced.IsDefinedFast(undefined));
-        Assert.Equal(Enum.IsDefined(typeof(TestEnum), undefined), TestEnumEnhanced.IsDefinedFast(undefined));
+        TestEnumEnhanced.IsDefinedFast(undefined).Should().BeFalse();
+        TestEnumEnhanced.IsDefinedFast(undefined).Should().Be(Enum.IsDefined(typeof(TestEnum), undefined));
     }
 
     [Fact]
     public void IsDefinedFast_CombinedFlags_ReturnsFalse()
     {
         var combined = TestEnum.Test1 | TestEnum.Test2;
-        Assert.False(TestEnumEnhanced.IsDefinedFast(combined));
-        Assert.Equal(Enum.IsDefined(typeof(TestEnum), combined), TestEnumEnhanced.IsDefinedFast(combined));
+        TestEnumEnhanced.IsDefinedFast(combined).Should().BeFalse();
+        TestEnumEnhanced.IsDefinedFast(combined).Should().Be(Enum.IsDefined(typeof(TestEnum), combined));
     }
 
     [Fact]
@@ -352,7 +352,7 @@ public class EnumEdgeCaseTests
         long overflowValue = (long)int.MaxValue + 1;
         int truncated = (int)overflowValue;
 
-        Assert.False(TestEnumEnhanced.IsDefinedFast(truncated));
+        TestEnumEnhanced.IsDefinedFast(truncated).Should().BeFalse();
     }
 
     [Fact]
@@ -361,11 +361,11 @@ public class EnumEdgeCaseTests
         var values = TestEnumEnhanced.GetValuesFast();
 
         // Should contain both Test1 and Test_1
-        Assert.Contains(TestEnum.Test1, values);
-        Assert.Contains(TestEnum.Test_1, values);
+        values.Should().Contain(TestEnum.Test1);
+        values.Should().Contain(TestEnum.Test_1);
 
         // They have the same underlying value
-        Assert.Equal((int)TestEnum.Test1, (int)TestEnum.Test_1);
+        ((int)TestEnum.Test_1).Should().Be((int)TestEnum.Test1);
     }
 
     [Fact]
@@ -373,8 +373,8 @@ public class EnumEdgeCaseTests
     {
         string[] names = TestEnumEnhanced.GetNamesFast();
 
-        Assert.Contains("Test1", names);
-        Assert.Contains("Test_1", names);
+        names.Should().Contain("Test1");
+        names.Should().Contain("Test_1");
     }
 
     [Fact]
@@ -384,8 +384,8 @@ public class EnumEdgeCaseTests
         string? resultFast = empty.ToStringFast();
         string? resultDefault = empty.ToString();
 
-        Assert.Equal(resultDefault, resultFast);
-        Assert.Equal("Test0", resultFast);
+        resultFast.Should().Be(resultDefault);
+        resultFast.Should().Be("Test0");
     }
 
     [Fact]
@@ -396,8 +396,8 @@ public class EnumEdgeCaseTests
         string? resultFast = test7.ToStringFast();
         string? resultDefault = test7.ToString();
 
-        Assert.Equal(resultDefault, resultFast);
-        Assert.Equal("Test7", resultFast);
+        resultFast.Should().Be(resultDefault);
+        resultFast.Should().Be("Test7");
     }
 
     [Fact]
@@ -407,13 +407,13 @@ public class EnumEdgeCaseTests
         string? stringValueFast = undefined.ToStringFast();
         string? stringValueDefault = undefined.ToString();
 
-        Assert.NotNull(stringValueFast);
-        Assert.Equal(stringValueDefault, stringValueFast);
+        stringValueFast.Should().NotBeNull();
+        stringValueFast.Should().Be(stringValueDefault);
 
         // Parsing back might work if it's numeric
         if (int.TryParse(stringValueFast, out int numValue))
         {
-            Assert.Equal(12345, numValue);
+            numValue.Should().Be(12345);
         }
     }
 
@@ -434,17 +434,17 @@ public class EnumEdgeCaseTests
             var combo2 = TestEnum.Test_1 | flag;
 
             // Should produce same numeric value
-            Assert.Equal((int)combo1, (int)combo2);
+            ((int)combo2).Should().Be((int)combo1);
 
             // ToString should be identical
-            Assert.Equal(combo1.ToStringFast(), combo2.ToStringFast());
-            Assert.Equal(combo1.ToString(), combo1.ToStringFast());
+            combo2.ToStringFast().Should().Be(combo1.ToStringFast());
+            combo1.ToStringFast().Should().Be(combo1.ToString());
 
             // Round trip should work
             var parsedFast = TestEnumEnhanced.ParseFast(combo1.ToStringFast()!);
             var parsedDefault = (TestEnum)Enum.Parse(typeof(TestEnum), combo1.ToString());
-            Assert.Equal(parsedDefault, parsedFast);
-            Assert.Equal(combo1, parsedFast);
+            parsedFast.Should().Be(parsedDefault);
+            parsedFast.Should().Be(combo1);
         }
     }
 
@@ -461,8 +461,8 @@ public class EnumEdgeCaseTests
             string? toStringFast = enumValue.ToStringFast();
             string? toStringDefault = enumValue.ToString();
 
-            Assert.NotNull(toStringFast);
-            Assert.Equal(toStringDefault, toStringFast);
+            toStringFast.Should().NotBeNull();
+            toStringFast.Should().Be(toStringDefault);
 
             // Should be parseable
             bool canParseFast = TestEnumEnhanced.TryParseFast(toStringFast, false, out var parsedFast);
@@ -470,11 +470,11 @@ public class EnumEdgeCaseTests
 
             if (canParseFast || canParseDefault)
             {
-                Assert.Equal(canParseDefault, canParseFast);
+                canParseFast.Should().Be(canParseDefault);
                 if (canParseFast)
                 {
-                    Assert.Equal(parsedDefault, parsedFast);
-                    Assert.Equal(enumValue, parsedFast);
+                    ((object)parsedFast).Should().Be(parsedDefault);
+                    parsedFast.Should().Be(enumValue);
                 }
             }
         }
@@ -498,9 +498,9 @@ public class EnumEdgeCaseTests
             string? resultFast = value.ToStringFast();
             string? resultDefault = value.ToString();
 
-            Assert.NotNull(resultFast);
-            Assert.Equal(resultDefault, resultFast);
-            Assert.DoesNotContain(", ", resultFast); // Should be single value
+            resultFast.Should().NotBeNull();
+            resultFast.Should().Be(resultDefault);
+            resultFast.Should().NotContain(", "); // Should be single value
         }
     }
 
@@ -527,8 +527,8 @@ public class EnumEdgeCaseTests
                 string? resultFast = combination.ToStringFast();
                 string? resultDefault = combination.ToString();
 
-                Assert.NotNull(resultFast);
-                Assert.Equal(resultDefault, resultFast);
+                resultFast.Should().NotBeNull();
+                resultFast.Should().Be(resultDefault);
             }
         }
     }
@@ -543,30 +543,30 @@ public class EnumEdgeCaseTests
             // GetNameFast round trip - compare with Enum.GetName
             string? name = value.GetNameFast(false);
             string? nameDefault = Enum.GetName(typeof(TestEnum), value);
-            Assert.Equal(nameDefault, name);
+            name.Should().Be(nameDefault);
 
             if (name != null)
             {
                 var parsedFast = TestEnumEnhanced.ParseFast(name);
                 var parsedDefault = (TestEnum)Enum.Parse(typeof(TestEnum), name);
-                Assert.Equal(parsedDefault, parsedFast);
-                Assert.Equal(value, parsedFast);
+                parsedFast.Should().Be(parsedDefault);
+                parsedFast.Should().Be(value);
             }
 
             // ToStringFast round trip - compare with ToString
             string? toStringFast = value.ToStringFast();
             string? toStringDefault = value.ToString();
-            Assert.NotNull(toStringFast);
-            Assert.Equal(toStringDefault, toStringFast);
+            toStringFast.Should().NotBeNull();
+            toStringFast.Should().Be(toStringDefault);
 
             bool canParseFast = TestEnumEnhanced.TryParseFast(toStringFast, false, out var parsedToStringFast);
             bool canParseDefault = Enum.TryParse(typeof(TestEnum), toStringDefault, false, out object? parsedToStringDefault);
 
-            Assert.Equal(canParseDefault, canParseFast);
+            canParseFast.Should().Be(canParseDefault);
             if (canParseFast)
             {
-                Assert.Equal(parsedToStringDefault, parsedToStringFast);
-                Assert.Equal(value, parsedToStringFast);
+                ((object)parsedToStringFast).Should().Be(parsedToStringDefault);
+                parsedToStringFast.Should().Be(value);
             }
         }
     }
@@ -593,18 +593,18 @@ public class EnumEdgeCaseTests
             // ToString should match default
             string? resultFast = combination.ToStringFast();
             string? resultDefault = combination.ToString();
-            Assert.NotNull(resultFast);
-            Assert.Equal(resultDefault, resultFast);
+            resultFast.Should().NotBeNull();
+            resultFast.Should().Be(resultDefault);
 
             // Parsing should work and match default
             bool canParseFast = TestEnumEnhanced.TryParseFast(resultFast, false, out var parsedFast);
             bool canParseDefault = Enum.TryParse(typeof(TestEnum), resultDefault, false, out object? parsedDefault);
 
-            Assert.Equal(canParseDefault, canParseFast);
+            canParseFast.Should().Be(canParseDefault);
             if (canParseFast)
             {
-                Assert.Equal(parsedDefault, parsedFast);
-                Assert.Equal(combination, parsedFast);
+                ((object)parsedFast).Should().Be(parsedDefault);
+                parsedFast.Should().Be(combination);
             }
         }
     }

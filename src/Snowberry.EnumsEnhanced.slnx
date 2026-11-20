@@ -1,0 +1,13 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/Snowberry.EnumsEnhanced.Benchmark/Snowberry.EnumsEnhanced.Benchmark.csproj" />
+    <Project Path="Tests/Snowberry.EnumsEnhanced.Generator.Tests/Snowberry.EnumsEnhanced.Generator.Tests.csproj" />
+    <Project Path="Tests/Snowberry.EnumsEnhanced.Tests/Snowberry.EnumsEnhanced.Tests.csproj" />
+  </Folder>
+  <Project Path="Snowberry.EnumsEnhanced/Snowberry.EnumsEnhanced.csproj" />
+</Solution>
