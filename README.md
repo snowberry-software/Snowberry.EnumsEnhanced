@@ -1,372 +1,190 @@
-[![License](https://img.shields.io/github/license/snowberry-software/Snowberry.EnumsEnhanced)](https://github.com/snowberry-software/Snowberry.EnumsEnhanced/blob/master/LICENSE)
-[![NuGet Version](https://img.shields.io/nuget/v/Snowberry.EnumsEnhanced.svg?logo=nuget)](https://www.nuget.org/packages/Snowberry.EnumsEnhanced/)
-
 # Snowberry.EnumsEnhanced
 
-`Snowberry.EnumsEnhanced` is a C# [source generator](https://devblogs.microsoft.com/dotnet/introducing-c-source-generators) for generating common (extension) methods for enums without having the cost of the Reflection API (slow and many allocations).
+[![License](https://img.shields.io/github/license/snowberry-software/Snowberry.EnumsEnhanced)](LICENSE)
+[![NuGet Version](https://img.shields.io/nuget/v/Snowberry.EnumsEnhanced.svg?logo=nuget)](https://www.nuget.org/packages/Snowberry.EnumsEnhanced/)
+[![CI](https://github.com/snowberry-software/Snowberry.EnumsEnhanced/actions/workflows/dotnet.yml/badge.svg)](https://github.com/snowberry-software/Snowberry.EnumsEnhanced/actions/workflows/dotnet.yml)
 
-Following extension methods will be generated for each enum:
+**Snowberry.EnumsEnhanced** is a C# [incremental source generator](https://github.com/dotnet/roslyn/blob/main/docs/features/incremental-generators.md) that writes reflection-free versions of the `System.Enum` methods for every enum in your project. The generated `ToStringFast`, `ParseFast`, `IsDefinedFast` and related methods are plain `switch` statements and constants, so they return the same results as `System.Enum` without reflection or boxing.
 
-| Default   | Equivalent    |
-| --------- | ------------- |
-| GetName   | GetNameFast   |
-| GetNames  | GetNamesFast  |
-| GetValues | GetValuesFast |
-| HasFlag   | HasFlagFast   |
-| IsDefined | IsDefinedFast |
-| Parse     | ParseFast     |
-| TryParse  | TryParseFast  |
-| ToString  | ToStringFast  |
+- Works in any project the .NET SDK 8.0.100 or later builds: .NET, .NET Framework, and .NET Standard, from C# 7.3 up.
+- Ships as an analyzer only: no runtime assembly and no dependencies end up in your output.
+- Up to 128x faster than `System.Enum` on .NET Framework 4.8 and up to 12x faster on .NET 11 (see [Benchmarks](#benchmarks)).
 
-# How to use it
+## Table of Contents
 
-Also it will only generate the extension methods if the enum has no containing type.
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Generated Methods](#generated-methods)
+- [Top Features at a Glance](#top-features-at-a-glance)
+- [How It Works](#how-it-works)
+- [Requirements](#requirements)
+- [Diagnostics](#diagnostics)
+- [Pitfalls](#pitfalls)
+- [Benchmarks](#benchmarks)
+- [Changelog](#changelog)
+- [License](#license)
 
-```cs
-internal class EnumContainingTypeTest
+## Installation
+
+```bash
+dotnet add package Snowberry.EnumsEnhanced
+```
+
+The package is a development dependency, so NuGet adds it with `PrivateAssets="all"` and it does not flow to projects that reference yours.
+
+## Quick Start
+
+1. Declare an enum at namespace level (here `Permissions.cs`):
+
+   ```csharp
+   namespace MyApp;
+
+   [Flags]
+   public enum Permissions
+   {
+       None = 0,
+       Read = 1,
+       Write = 2,
+       Delete = 4,
+       ReadWrite = Read | Write,
+   }
+   ```
+
+2. Build. The generator adds a static class named after the enum with an `Enhanced` suffix, `PermissionsEnhanced`, in the same namespace.
+
+3. Call the generated methods: extension methods on the value, static methods on the class.
+
+   ```csharp
+   using MyApp;
+
+   var permissions = Permissions.Read | Permissions.Delete;
+
+   Console.WriteLine(permissions.ToStringFast());                    // Read, Delete
+   Console.WriteLine(permissions.HasFlagFast(Permissions.Delete));   // True
+   Console.WriteLine(Permissions.ReadWrite.GetNameFast());           // ReadWrite
+
+   Permissions parsed = PermissionsEnhanced.ParseFast("Read, Write"); // Permissions.ReadWrite
+   Console.WriteLine(parsed);
+
+   if (PermissionsEnhanced.TryParseFast("delete", ignoreCase: true, out var delete))
+       Console.WriteLine(delete);                                    // Delete
+
+   Console.WriteLine(PermissionsEnhanced.IsDefinedFast("Execute"));  // False
+   Console.WriteLine(string.Join(", ", PermissionsEnhanced.GetNamesFast())); // None, Read, Write, Delete, ReadWrite
+   ```
+
+## Generated Methods
+
+For an enum `TEnum` with underlying type `TUnderlying`, the generator emits `TEnumEnhanced` with these members:
+
+| Generated method | Replaces | Notes |
+| --- | --- | --- |
+| `e.ToStringFast()` | `e.ToString()` | Same output, including `"Read, Delete"` for flag combinations and the number for undefined values. |
+| `e.GetNameFast(bool includeFlagNames = false)` | `Enum.GetName(typeof(TEnum), e)` | Returns `null` for values without a name, unless `includeFlagNames` is `true`. |
+| `e.HasFlagFast(TEnum flag)` | `e.HasFlag(flag)` | Bitwise check on the underlying value. |
+| `TEnumEnhanced.GetNamesFast()` | `Enum.GetNames(typeof(TEnum))` | Returns a new array on every call. |
+| `TEnumEnhanced.GetValuesFast()` | `Enum.GetValues(typeof(TEnum))` | Returns a new, strongly typed array on every call. |
+| `TEnumEnhanced.IsDefinedFast(string)` | `Enum.IsDefined(typeof(TEnum), name)` | Case-sensitive name match; throws `ArgumentNullException` for `null`. |
+| `TEnumEnhanced.IsDefinedFast(TEnum)` and `IsDefinedFast(TUnderlying)` | `Enum.IsDefined(typeof(TEnum), value)` | |
+| `TEnumEnhanced.ParseFast(string, bool ignoreCase = false)` | `Enum.Parse(typeof(TEnum), value, ignoreCase)` | Accepts names, comma-separated flag names, and numbers; throws `ArgumentException` on failure. |
+| `TEnumEnhanced.TryParseFast(string, bool ignoreCase, out TEnum)` | `Enum.TryParse(value, ignoreCase, out result)` | |
+
+The generated code is a static `partial` class with the enum's accessibility (`public` or `internal`). An excerpt for `Permissions`, reformatted and without the XML documentation comments:
+
+```csharp
+public static partial class PermissionsEnhanced
 {
-    // Will not generate any code for this enum.
-    public enum ContainingTypeEnum
+    public static string[] GetNamesFast()
     {
-        Test1
+        return new string[] {
+            "None", "Read", "Write", "Delete", "ReadWrite"
+        };
     }
-}
-```
 
-The generated class will always have the same naming scheme by using your enum type name with an `Enhanced` postfix (e.g. **YourEnumName**`Enhanced`)
-or in this example **TestEnumEnhanced**.
-
-```cs
-namespace TestEnumEnhancedTest;
-
-[Flags]
-public enum TestEnum : short
-{
-    Test1 = 1 << 0,
-    Test2 = 1 << 1,
-    Test4 = 1 << 2,
-    Test5 = 1 << 4,
-    Test6 = 1 << 6,
-    Test7
-}
-```
-
-Generated code:
-
-```cs
-#nullable enable
-
-using System.Text;
-using System.Runtime.CompilerServices;
-using System.Collections.Generic;
-using System;
-using System.Globalization;
-
-namespace TestEnumEnhancedTest
-{
-    /// <summary>
-    /// Reflection free extension methods for the <see cref="TestEnum"/> type.
-    /// </summary>
-    public static partial class TestEnumEnhanced
+    public static bool IsDefinedFast(Permissions value)
     {
-        /// <summary>
-        /// Determines whether one or more bit fields are set in the current instance.
-        /// </summary>
-        /// <param name="e">The value of the enum.</param>
-        /// <param name="flag">The flag to check.</param>
-        /// <returns><see langword="true"/> if the bit field or bit fields that are set in <paramref name="flag"/> are also set in <paramref name="e"/>; otherwise, <see langword="false"/>.</returns>
-#if NETCOREAPP3_0_OR_GREATER
-#else
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-#endif
-        public static bool HasFlagFast(this TestEnum e, TestEnum flag)
+        switch (value)
         {
-#if NETCOREAPP3_0_OR_GREATER
-            Int16 flagsValue = Unsafe.As<TestEnum, Int16>(ref flag);
-            return (Unsafe.As<TestEnum, Int16>(ref e) & flagsValue) == flagsValue;
-#else
-            return ((Int16)e & (Int16)flag) == (Int16)flag;
-#endif
+            case Permissions.None: return true;
+            case Permissions.Read: return true;
+            case Permissions.Write: return true;
+            case Permissions.Delete: return true;
+            case Permissions.ReadWrite: return true;
         }
 
-        /// <summary>
-        /// Retrieves an array of the names of the constants.
-        /// </summary>
-        /// <returns>A string array of the names of the constants.</returns>
-        public static string[] GetNamesFast()
-        {
-            return new string[] { "Test1", "Test2", "Test4", "Test5", "Test6", "Test7" };
-        }
-
-        /// <summary>
-        /// Retrieves an array of the values of the constants.
-        /// </summary>
-        /// <returns>An array that contains the values of the constants.</returns>
-        public static TestEnum[] GetValuesFast()
-        {
-            return new TestEnum[] { TestEnum.Test1, TestEnum.Test2, TestEnum.Test4, TestEnum.Test5, TestEnum.Test6, TestEnum.Test7 };
-        }
-
-        /// <inheritdoc cref="IsDefinedFast(TestEnum)"/>
-        /// <param name="value">The name of the enumeration constant.</param>
-        /// <exception cref="ArgumentNullException"><paramref name="value"/> is <see langword="null"/>.</exception>
-        public static bool IsDefinedFast(string value)
-        {
-            _ = value ?? throw new ArgumentNullException(nameof(value));
-
-            switch (value)
-            {
-                case "Test1": return true;
-                case "Test2": return true;
-                case "Test4": return true;
-                case "Test5": return true;
-                case "Test6": return true;
-                case "Test7": return true;
-            }
-
-            return false;
-        }
-
-        /// <inheritdoc cref="IsDefinedFast(TestEnum)"/>
-#if NETCOREAPP3_0_OR_GREATER
-#else
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-#endif
-        public static bool IsDefinedFast(Int16 value)
-        {
-            return IsDefinedFast((TestEnum)value);
-        }
-
-        /// <summary>
-        /// Returns a <see cref="bool"/> telling whether its given value exists in the enumeration.
-        /// </summary>
-        /// <param name="value">The value of the enumeration constant.</param>
-        /// <returns><see langword="true"/> if a constant is defined with the given value from the <paramref name="value"/>.</returns>
-        public static bool IsDefinedFast(TestEnum value)
-        {
-            switch (value)
-            {
-                case TestEnum.Test1: return true;
-                case TestEnum.Test2: return true;
-                case TestEnum.Test4: return true;
-                case TestEnum.Test5: return true;
-                case TestEnum.Test6: return true;
-                case TestEnum.Test7: return true;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Resolves the name of the given enum value.
-        /// </summary>
-        /// <param name="e">The value of a particular enumerated constant in terms of its underlying type.</param>
-        /// <param name="includeFlagNames">Determines whether the value has flags, so it will return <c>EnumValue, EnumValue2</c>.</param>
-        /// <returns> A string containing the name of the enumerated constant or <see langword="null"/> if the enum has multiple flags set but <paramref name="includeFlagNames"/> is not enabled.</returns>
-        public static string? GetNameFast(this TestEnum e, bool includeFlagNames = false)
-        {
-            switch (e)
-            {
-                case TestEnum.Test1: return nameof(TestEnum.Test1);
-                case TestEnum.Test2: return nameof(TestEnum.Test2);
-                case TestEnum.Test4: return nameof(TestEnum.Test4);
-                case TestEnum.Test5: return nameof(TestEnum.Test5);
-                case TestEnum.Test6: return nameof(TestEnum.Test6);
-                case TestEnum.Test7: return nameof(TestEnum.Test7);
-            }
-
-            // FLAGS ENABLED
-            // Returning null is the default behavior.
-            if (!includeFlagNames)
-                return null;
-
-            string? flagResult = null;
-            Int16 checkedMaskCurrent = (Int16)e;
-            if ((checkedMaskCurrent & 65) == 65) { flagResult = flagResult is null ? nameof(TestEnum.Test7) : nameof(TestEnum.Test7) + ", " + flagResult; checkedMaskCurrent -= 65; }
-            if ((checkedMaskCurrent & 64) == 64) { flagResult = flagResult is null ? nameof(TestEnum.Test6) : nameof(TestEnum.Test6) + ", " + flagResult; checkedMaskCurrent -= 64; }
-            if ((checkedMaskCurrent & 16) == 16) { flagResult = flagResult is null ? nameof(TestEnum.Test5) : nameof(TestEnum.Test5) + ", " + flagResult; checkedMaskCurrent -= 16; }
-            if ((checkedMaskCurrent & 4) == 4) { flagResult = flagResult is null ? nameof(TestEnum.Test4) : nameof(TestEnum.Test4) + ", " + flagResult; checkedMaskCurrent -= 4; }
-            if ((checkedMaskCurrent & 2) == 2) { flagResult = flagResult is null ? nameof(TestEnum.Test2) : nameof(TestEnum.Test2) + ", " + flagResult; checkedMaskCurrent -= 2; }
-            if ((checkedMaskCurrent & 1) == 1) { flagResult = flagResult is null ? nameof(TestEnum.Test1) : nameof(TestEnum.Test1) + ", " + flagResult; checkedMaskCurrent -= 1; }
-
-            if (checkedMaskCurrent != default)
-                return ((Int16)e).ToString();
-
-            return flagResult ?? ((Int16)e).ToString();
-        }
-
-        private static string? ToStringFastInternal(this TestEnum e, bool includeFlagNames = false)
-        {
-            switch (e)
-            {
-                case TestEnum.Test1: return nameof(TestEnum.Test1);
-                case TestEnum.Test2: return nameof(TestEnum.Test2);
-                case TestEnum.Test4: return nameof(TestEnum.Test4);
-                case TestEnum.Test5: return nameof(TestEnum.Test5);
-                case TestEnum.Test6: return nameof(TestEnum.Test6);
-                case TestEnum.Test7: return nameof(TestEnum.Test7);
-            }
-
-            if (!includeFlagNames)
-                return null;
-
-            string? flagResult = null;
-            Int16 checkedMaskCurrent = (Int16)e;
-            if ((checkedMaskCurrent & 65) == 65) { flagResult = flagResult is null ? nameof(TestEnum.Test7) : nameof(TestEnum.Test7) + ", " + flagResult; checkedMaskCurrent -= 65; }
-            if ((checkedMaskCurrent & 64) == 64) { flagResult = flagResult is null ? nameof(TestEnum.Test6) : nameof(TestEnum.Test6) + ", " + flagResult; checkedMaskCurrent -= 64; }
-            if ((checkedMaskCurrent & 16) == 16) { flagResult = flagResult is null ? nameof(TestEnum.Test5) : nameof(TestEnum.Test5) + ", " + flagResult; checkedMaskCurrent -= 16; }
-            if ((checkedMaskCurrent & 4) == 4) { flagResult = flagResult is null ? nameof(TestEnum.Test4) : nameof(TestEnum.Test4) + ", " + flagResult; checkedMaskCurrent -= 4; }
-            if ((checkedMaskCurrent & 2) == 2) { flagResult = flagResult is null ? nameof(TestEnum.Test2) : nameof(TestEnum.Test2) + ", " + flagResult; checkedMaskCurrent -= 2; }
-            if ((checkedMaskCurrent & 1) == 1) { flagResult = flagResult is null ? nameof(TestEnum.Test1) : nameof(TestEnum.Test1) + ", " + flagResult; checkedMaskCurrent -= 1; }
-
-            if (checkedMaskCurrent != default)
-                return ((Int16)e).ToString();
-
-            return flagResult ?? ((Int16)e).ToString();
-        }
-
-        /// <summary>
-        /// Converts the value of this instance to its equivalent string representation.
-        /// </summary>
-        /// <param name="e">The value of a particular enumerated constant in terms of its underlying type.</param>
-        /// <returns>The string representation of the value of this instance.</returns>
-#if NETCOREAPP3_0_OR_GREATER
-#else
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-#endif
-        public static string? ToStringFast(this TestEnum e)
-        {
-            return ToStringFastInternal(e, true);
-        }
-
-        /// <summary>
-        /// Converts the string representation of the name or numeric value of one or more enumerated constants to an equivalent enumerated object.
-        /// </summary>
-        /// <param name="value">A string containing the name or value to convert.</param>
-        /// <param name="ignoreCase"><see langword="true"/> to ignore case; <see langword="false"/> to regard case.</param>
-        /// <param name="result">The result of the enumeration constant.</param>
-        /// <returns><see langword="true"/> if the conversion succeeded; <see langword="false"/> otherwise.</returns>
-        public static bool TryParseFast(string value, bool ignoreCase, out TestEnum result)
-        {
-            result = ParseFast(out var successful, value: value, ignoreCase: ignoreCase, throwOnFailure: false);
-            return successful;
-        }
-
-        /// <summary>
-        /// Converts the string representation of the name or numeric value of one or more enumerated constants to an equivalent enumerated object.
-        /// </summary>
-        /// <param name="value">A string containing the name or value to convert.</param>
-        /// <param name="ignoreCase"><see langword="true"/> to ignore case; <see langword="false"/> to regard case.</param>
-        /// <returns>The enumeration value whose value is represented by the given value.</returns>
-        /// <exception cref="ArgumentException"><paramref name="value"/> is <see langword="null"/>, empty, whitespace, or cannot be converted to a defined value.</exception>
-        public static TestEnum ParseFast(string value, bool ignoreCase = false)
-        {
-            return ParseFast(out _, value: value, ignoreCase: ignoreCase, throwOnFailure: true);
-        }
-
-        /// <summary>
-        /// Converts the string representation of the name or numeric value of one or more enumerated constants to an equivalent enumerated object.
-        /// </summary>
-        /// <param name="successful"><see langword="true"/> if the conversion succeeded; <see langword="false"/> otherwise.</param>
-        /// <param name="value">A string containing the name or value to convert.</param>
-        /// <param name="ignoreCase"><see langword="true"/> to ignore case; <see langword="false"/> to regard case.</param>
-        /// <param name="throwOnFailure"><see langword="true"/> to throw on a failed conversion; <see langword="false"/> to return <see langword="default"/> instead.</param>
-        /// <returns>The enumeration value whose value is represented by the given value.</returns>
-        /// <exception cref="ArgumentException"><paramref name="throwOnFailure"/> is <see langword="true"/> and <paramref name="value"/> is <see langword="null"/>, empty, whitespace, or cannot be converted to a defined value.</exception>
-        public static TestEnum ParseFast(out bool successful, string value, bool ignoreCase = false, bool throwOnFailure = true)
-        {
-            successful = false;
-
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                if (throwOnFailure)
-                    throw new ArgumentException("Value can't be null or whitespace!", nameof(value));
-
-                return default;
-            }
-
-            Int16 localResult = 0;
-            bool parsed = false;
-            string subValue;
-            string originalValue = value;
-            char firstChar = value[0];
-
-            if (char.IsWhiteSpace(firstChar))
-                firstChar = value.TrimStart()[0];
-
-            if (char.IsDigit(firstChar) || firstChar == '-' || firstChar == '+')
-            {
-                if (Int16.TryParse(value, NumberStyles.AllowLeadingSign | NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite, null, out var valueNumber))
-                {
-                    parsed = true;
-                    localResult = valueNumber;
-                }
-            }
-            else
-            while (value != null && value.Length > 0)
-            {
-                parsed = false;
-
-                int endIndex = value.IndexOf(',');
-
-                if (endIndex < 0)
-                {
-                    // No next separator; use the remainder as the next value.
-                    subValue = value.Trim();
-                    value = null!;
-                }
-                else if (endIndex != value!.Length - 1)
-                {
-                    // Found a separator before the last char.
-                    subValue = value.Substring(0, endIndex).Trim();
-                    value = value.Substring(endIndex + 1);
-                }
-                else
-                {
-                    // Last char was a separator, which is invalid.
-                    break;
-                }
-
-                if (!ignoreCase)
-                {
-                    switch (subValue)
-                    {
-                        case nameof(TestEnum.Test1): parsed = true; localResult |= 1; break;
-                        case nameof(TestEnum.Test2): parsed = true; localResult |= 2; break;
-                        case nameof(TestEnum.Test4): parsed = true; localResult |= 4; break;
-                        case nameof(TestEnum.Test5): parsed = true; localResult |= 16; break;
-                        case nameof(TestEnum.Test6): parsed = true; localResult |= 64; break;
-                        case nameof(TestEnum.Test7): parsed = true; localResult |= 65; break;
-                    }
-                }
-                else
-                {
-                    if (subValue.Equals(nameof(TestEnum.Test1), StringComparison.OrdinalIgnoreCase)) { parsed = true; localResult |= 1; }
-                    if (subValue.Equals(nameof(TestEnum.Test2), StringComparison.OrdinalIgnoreCase)) { parsed = true; localResult |= 2; }
-                    if (subValue.Equals(nameof(TestEnum.Test4), StringComparison.OrdinalIgnoreCase)) { parsed = true; localResult |= 4; }
-                    if (subValue.Equals(nameof(TestEnum.Test5), StringComparison.OrdinalIgnoreCase)) { parsed = true; localResult |= 16; }
-                    if (subValue.Equals(nameof(TestEnum.Test6), StringComparison.OrdinalIgnoreCase)) { parsed = true; localResult |= 64; }
-                    if (subValue.Equals(nameof(TestEnum.Test7), StringComparison.OrdinalIgnoreCase)) { parsed = true; localResult |= 65; }
-                }
-
-                if (!parsed)
-                    break;
-            }
-
-            successful = true;
-
-            if (!parsed)
-            {
-                successful = false;
-
-                if (throwOnFailure)
-                    throw new ArgumentException($"Could not convert the given value `{originalValue}`.", nameof(value));
-            }
-
-            return (TestEnum)localResult;
-        }
+        return false;
     }
-}
 
-#nullable restore
+    // HasFlagFast, GetValuesFast, GetNameFast, ToStringFast, ParseFast, TryParseFast ...
+}
 ```
+
+The complete output for several enum shapes is checked in as snapshot files under [src/Tests/Snowberry.EnumsEnhanced.Generator.Tests/Snapshots](src/Tests/Snowberry.EnumsEnhanced.Generator.Tests/Snapshots).
+
+## Top Features at a Glance
+
+- **Same results as `System.Enum`.** `ToStringFast` and `ParseFast` follow the BCL formatting and parsing rules, including flag decomposition, named composite values, and numeric strings; the test suite compares them value by value.
+- **No allocations for names and checks.** `ToStringFast`, `GetNameFast`, `HasFlagFast` and `IsDefinedFast` return constants or compare values; only undefined values and flag combinations without a single name build a string.
+- **Every underlying type.** `byte`, `sbyte`, `short`, `ushort`, `int`, `uint`, `long` and `ulong` enums, including negative values and `ulong.MaxValue`.
+- **Incremental and cached.** The generator works on a value-equatable model of each enum, so editing one enum or an unrelated file does not regenerate the others.
+- **Warning-free output.** The generated code compiles without warnings at the highest warning level, with or without nullable reference types, down to C# 7.3.
+
+## How It Works
+
+The generator runs inside the C# compiler during every build and in the IDE as you type:
+
+```text
+enum declaration          incremental generator              generated source
+(namespace level)   --->  reads names, values, [Flags]  ---> TEnumEnhanced.g.cs
+Permissions               and the underlying type            switch statements and
+                                                             constants, compiled into
+                                                             your assembly
+```
+
+Nothing is looked up at run time: every name, value and flag combination is known at compile time and written into the generated methods. To inspect the output, set `<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>` in your project; the files appear under `obj/<configuration>/<framework>/generated/`.
+
+## Requirements
+
+| Requirement | Minimum |
+| --- | --- |
+| Compiler | .NET SDK 8.0.100 or Visual Studio 2022 17.8 (Roslyn 4.8) |
+| Language version | C# 7.3; nullable annotations are emitted from C# 8 |
+| Target framework | Any: the generator runs in the compiler, not in your application |
+
+## Diagnostics
+
+| Id | Severity | Meaning |
+| --- | --- | --- |
+| `EE001` | Error | The underlying type of an enum could not be resolved, so no code is generated for it. |
+
+## Pitfalls
+
+- **Nested enums are skipped.** An enum declared inside a class or struct gets no generated methods; move it to namespace level to use them.
+- **`GetNameFast` returns `null` for flag combinations by default.** That matches `Enum.GetName`. Pass `includeFlagNames: true`, or use `ToStringFast`, to get `"Read, Delete"`.
+- **`GetNamesFast` and `GetValuesFast` allocate.** Like `Enum.GetNames` and `Enum.GetValues`, they return a new array on every call. Cache the result on hot paths.
+- **The `TEnumEnhanced` name is taken.** Declaring your own non-partial type with that name in the same namespace causes a compile error; add members by declaring `static partial class TEnumEnhanced` instead.
+- **`HasFlagFast` is no faster on modern .NET.** Since .NET Core 2.1 the JIT turns `Enum.HasFlag` into the same bitwise check; the gain is on .NET Framework.
+
+## Benchmarks
+
+Measured with BenchmarkDotNet on an AMD Ryzen 9 7950X3D, comparing each generated method with the non-generic `System.Enum` call:
+
+| Operation | .NET Framework 4.8 | .NET 10 | .NET 11 |
+| --- | ---: | ---: | ---: |
+| `ToString` | 128x | 4.3x | 4.5x |
+| `GetValues` | 125x | 10x | 12x |
+| `IsDefined` (value) | 77x | 6.9x | 6.3x |
+| `GetName` | 55x | 8.4x | 8.3x |
+| `Parse` (name) | 5.0x | 1.9x | 2.0x |
+
+All operations, the full result tables, and the test environment are in [BENCHMARKS.md](BENCHMARKS.md).
+
+## Changelog
+
+Release notes for every version are in [CHANGELOG.txt](CHANGELOG.txt).
+
+## License
+
+Licensed under the [MIT License](LICENSE).
+
+Copyright (c) 2026 Snowberry Software
