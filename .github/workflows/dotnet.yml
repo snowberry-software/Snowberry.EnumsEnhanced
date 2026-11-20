@@ -1,52 +1,105 @@
 name: .NET
 
-# Trigger this workflow on a push, or pull request to the master or develop branch
+# Pushes to master and develop, version tags, and pull requests into master or develop.
 on:
   push:
+    branches: [master, develop]
+    tags: ["v*"]
+    paths-ignore:
+      - "README.md"
   pull_request:
     branches: [master, develop]
     paths-ignore:
       - "README.md"
 
+permissions:
+  contents: read
+
 env:
-  DOTNET_VERSION: "10.x" # The .NET SDK version to use
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
   build:
+    name: Build and test
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./src
-    steps:
-      - uses: actions/checkout@v6
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      - name: Restore dependencies
-        run: dotnet restore
-      - name: Build
-        run: dotnet build --no-restore
-      - name: Test
-        run: dotnet test --no-build --verbosity normal
 
-  deploy:
-    runs-on: ubuntu-latest
     defaults:
       run:
+        # Run from src so the SDK picks up src/global.json (Microsoft.Testing.Platform runner).
         working-directory: ./src
-    needs: build
-    # Publish for a tag starting with v.
-    if: startsWith(github.ref, 'refs/tags/v')
+
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+
+      # src/global.json requires the .NET 11 SDK, which builds every target but does not carry the .NET 10 runtime the net10.0
+      # tests run on.
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      - name: Restore dependencies
+          dotnet-version: |
+            10.0.x
+            11.0.x
+
+      - name: Restore
         run: dotnet restore
+
       - name: Build
         run: dotnet build --configuration Release --no-restore
-      - name: Deploy
-        run: dotnet nuget push "Snowberry.EnumsEnhanced/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
+
+      # Runs every test project on every target framework (net11.0 and net10.0).
+      - name: Test
+        run: dotnet test --configuration Release --no-build
+
+      # The deploy job publishes exactly this package, so it is only uploaded for the tags the deploy job runs on.
+      - name: Upload package
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: src/Snowberry.EnumsEnhanced/bin/Release/*.nupkg
+          if-no-files-found: error
+
+  # nuget.org Trusted Publishing: no long-lived API key. NuGet/login exchanges the job's GitHub OIDC token for a short-lived (1 hour)
+  # key. The nuget.org policy must match this repository, this workflow file (dotnet.yml) and the release environment.
+  deploy:
+    name: Publish to NuGet
+    runs-on: ubuntu-latest
+    needs: build
+    # Publish for a tag starting with v, after every test passed.
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: packages
+
+      # Refuse to publish when the tag and the package version disagree. The version is read from the package file name, which
+      # NuGet normalizes: AssemblyVersion 3.1.0.0 needs tag v3.1.0, and 3.1.0.1 needs v3.1.0.1.
+      - name: Check version
+        shell: bash
+        run: |
+          expected="${GITHUB_REF_NAME#v}"
+          names=$(cd packages && ls *.nupkg)
+          echo "Tag: ${GITHUB_REF_NAME}, packages: ${names}"
+          if [ ! -f "packages/Snowberry.EnumsEnhanced.${expected}.nupkg" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match the built Snowberry.EnumsEnhanced package (${names})."
+            exit 1
+          fi
+
+      # Log in after the version check so the short-lived key is fresh for the push.
+      - name: NuGet login
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish
+        env:
+          NUGET_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push "packages/*.nupkg" --api-key "$NUGET_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
