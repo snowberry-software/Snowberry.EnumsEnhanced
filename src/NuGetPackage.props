@@ -45,9 +45,5 @@
         <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     </PropertyGroup>
 
-    <!-- SourceLink -->
-    <ItemGroup>
-        <!-- For GitHub -->
-        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
-    </ItemGroup>
+    <!-- SourceLink for GitHub ships with the .NET SDK (8.0+), so no Microsoft.SourceLink.GitHub reference is needed. -->
 </Project>

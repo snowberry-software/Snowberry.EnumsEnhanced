@@ -13,8 +13,8 @@ public class FlagVsNonFlagTests
         string? resultFast = combined.ToStringFast();
         string? resultDefault = combined.ToString();
 
-        Assert.Equal(resultDefault, resultFast);
-        Assert.Contains(", ", resultFast); // Should have commas
+        resultFast.Should().Be(resultDefault);
+        resultFast.Should().Contain(", "); // Should have commas
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public class FlagVsNonFlagTests
         string? resultFast = combined.ToStringFast();
         string? resultDefault = combined.ToString();
 
-        Assert.Equal(resultDefault, resultFast);
+        resultFast.Should().Be(resultDefault);
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class FlagVsNonFlagTests
         string? resultFast = composite.ToStringFast();
         string? resultDefault = composite.ToString();
 
-        Assert.Equal(resultDefault, resultFast);
+        resultFast.Should().Be(resultDefault);
     }
 
     [Fact]
@@ -45,8 +45,8 @@ public class FlagVsNonFlagTests
     {
         var value = SequentialEnum.Third;
 
-        Assert.Equal(value.ToString(), value.ToStringFast());
-        Assert.Equal("Third", value.ToStringFast());
+        value.ToStringFast().Should().Be(value.ToString());
+        value.ToStringFast().Should().Be("Third");
     }
 
     [Fact]
@@ -58,9 +58,9 @@ public class FlagVsNonFlagTests
         string? resultFast = composite.ToStringFast();
         string? resultDefault = composite.ToString();
 
-        Assert.Equal(resultDefault, resultFast);
+        resultFast.Should().Be(resultDefault);
         // Should return "ReadWrite", not "Read, Write"
-        Assert.Equal("ReadWrite", resultFast);
+        resultFast.Should().Be("ReadWrite");
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public class FlagVsNonFlagTests
         string? resultFast = composite.ToStringFast();
         string? resultDefault = composite.ToString();
 
-        Assert.Equal(resultDefault, resultFast);
-        Assert.Contains(", ", resultFast);
+        resultFast.Should().Be(resultDefault);
+        resultFast.Should().Contain(", ");
     }
 
     [Fact]
@@ -84,8 +84,8 @@ public class FlagVsNonFlagTests
         string? resultFast = all.ToStringFast();
         string? resultDefault = all.ToString();
 
-        Assert.Equal(resultDefault, resultFast);
-        Assert.Equal("All", resultFast);
+        resultFast.Should().Be(resultDefault);
+        resultFast.Should().Be("All");
     }
 
     [Fact]
@@ -93,8 +93,8 @@ public class FlagVsNonFlagTests
     {
         var none = ByteFlagsEnum.None;
 
-        Assert.Equal(none.ToString(), none.ToStringFast());
-        Assert.Equal("None", none.ToStringFast());
+        none.ToStringFast().Should().Be(none.ToString());
+        none.ToStringFast().Should().Be("None");
     }
 
     [Fact]
@@ -102,8 +102,8 @@ public class FlagVsNonFlagTests
     {
         var none = SequentialEnum.None;
 
-        Assert.Equal(none.ToString(), none.ToStringFast());
-        Assert.Equal("None", none.ToStringFast());
+        none.ToStringFast().Should().Be(none.ToString());
+        none.ToStringFast().Should().Be("None");
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class FlagVsNonFlagTests
         var parsed = CompositeFlagsEnumEnhanced.ParseFast("Read, Write, Execute");
         var expected = CompositeFlagsEnum.Read | CompositeFlagsEnum.Write | CompositeFlagsEnum.Execute;
 
-        Assert.Equal(expected, parsed);
+        parsed.Should().Be(expected);
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public class FlagVsNonFlagTests
         var original = Enum.Parse<SequentialEnum>("First, Second");
         var actual = SequentialEnumEnhanced.ParseFast("First, Second");
 
-        Assert.Equal(original, actual);
+        actual.Should().Be(original);
     }
 
     [Fact]
@@ -129,11 +129,11 @@ public class FlagVsNonFlagTests
     {
         var value = ByteFlagsEnum.Bit0 | ByteFlagsEnum.Bit1;
 
-        Assert.True(value.HasFlagFast(ByteFlagsEnum.Bit0));
-        Assert.True(value.HasFlagFast(ByteFlagsEnum.Bit1));
-        Assert.False(value.HasFlagFast(ByteFlagsEnum.Bit2));
+        value.HasFlagFast(ByteFlagsEnum.Bit0).Should().BeTrue();
+        value.HasFlagFast(ByteFlagsEnum.Bit1).Should().BeTrue();
+        value.HasFlagFast(ByteFlagsEnum.Bit2).Should().BeFalse();
 
-        Assert.Equal(value.HasFlag(ByteFlagsEnum.Bit0), value.HasFlagFast(ByteFlagsEnum.Bit0));
+        value.HasFlagFast(ByteFlagsEnum.Bit0).Should().Be(value.HasFlag(ByteFlagsEnum.Bit0));
     }
 
     [Fact]
@@ -143,9 +143,9 @@ public class FlagVsNonFlagTests
         var value = SequentialEnum.Third; // 3
         var flag = SequentialEnum.First;  // 1
 
-        Assert.Equal(value.HasFlag(flag), value.HasFlagFast(flag));
+        value.HasFlagFast(flag).Should().Be(value.HasFlag(flag));
         // 3 & 1 == 1, so technically "has flag"
-        Assert.True(value.HasFlagFast(flag));
+        value.HasFlagFast(flag).Should().BeTrue();
     }
 
     [Fact]
@@ -153,9 +153,8 @@ public class FlagVsNonFlagTests
     {
         var combined = ByteFlagsEnum.Bit0 | ByteFlagsEnum.Bit1;
 
-        Assert.Equal(Enum.IsDefined(typeof(ByteFlagsEnum), combined),
-                     ByteFlagsEnumEnhanced.IsDefinedFast(combined));
-        Assert.False(ByteFlagsEnumEnhanced.IsDefinedFast(combined));
+        ByteFlagsEnumEnhanced.IsDefinedFast(combined).Should().Be(Enum.IsDefined(typeof(ByteFlagsEnum), combined));
+        ByteFlagsEnumEnhanced.IsDefinedFast(combined).Should().BeFalse();
     }
 
     [Fact]
@@ -163,9 +162,8 @@ public class FlagVsNonFlagTests
     {
         var invalid = (SequentialEnum)99;
 
-        Assert.Equal(Enum.IsDefined(typeof(SequentialEnum), invalid),
-                     SequentialEnumEnhanced.IsDefinedFast(invalid));
-        Assert.False(SequentialEnumEnhanced.IsDefinedFast(invalid));
+        SequentialEnumEnhanced.IsDefinedFast(invalid).Should().Be(Enum.IsDefined(typeof(SequentialEnum), invalid));
+        SequentialEnumEnhanced.IsDefinedFast(invalid).Should().BeFalse();
     }
 
     [Fact]
@@ -173,8 +171,7 @@ public class FlagVsNonFlagTests
     {
         var composite = CompositeFlagsEnum.ReadWrite;
 
-        Assert.Equal(Enum.IsDefined(typeof(CompositeFlagsEnum), composite),
-                     CompositeFlagsEnumEnhanced.IsDefinedFast(composite));
-        Assert.True(CompositeFlagsEnumEnhanced.IsDefinedFast(composite));
+        CompositeFlagsEnumEnhanced.IsDefinedFast(composite).Should().Be(Enum.IsDefined(typeof(CompositeFlagsEnum), composite));
+        CompositeFlagsEnumEnhanced.IsDefinedFast(composite).Should().BeTrue();
     }
 }

@@ -8,7 +8,7 @@ namespace Snowberry.EnumsEnhanced.Generator.Tests;
 public class GeneratorSnapshotTests
 {
     [Fact]
-    public Task FlagsEnum_WithDuplicateValue()
+    public void FlagsEnum_WithDuplicateValue()
     {
         const string source = """
             using System;
@@ -26,11 +26,11 @@ public class GeneratorSnapshotTests
             }
             """;
 
-        return TestHelper.Verify(source);
+        TestHelper.AssertMatchesSnapshot(source);
     }
 
     [Fact]
-    public Task NonFlagsSequentialEnum()
+    public void NonFlagsSequentialEnum()
     {
         const string source = """
             namespace Sample;
@@ -44,11 +44,11 @@ public class GeneratorSnapshotTests
             }
             """;
 
-        return TestHelper.Verify(source);
+        TestHelper.AssertMatchesSnapshot(source);
     }
 
     [Fact]
-    public Task ByteFlagsEnum()
+    public void ByteFlagsEnum()
     {
         const string source = """
             using System;
@@ -66,11 +66,11 @@ public class GeneratorSnapshotTests
             }
             """;
 
-        return TestHelper.Verify(source);
+        TestHelper.AssertMatchesSnapshot(source);
     }
 
     [Fact]
-    public Task LongFlagsEnum_WithSignBit()
+    public void LongFlagsEnum_WithSignBit()
     {
         const string source = """
             using System;
@@ -87,11 +87,11 @@ public class GeneratorSnapshotTests
             }
             """;
 
-        return TestHelper.Verify(source);
+        TestHelper.AssertMatchesSnapshot(source);
     }
 
     [Fact]
-    public Task UlongEnum_WithMaxValue()
+    public void UlongEnum_WithMaxValue()
     {
         const string source = """
             namespace Sample;
@@ -104,11 +104,11 @@ public class GeneratorSnapshotTests
             }
             """;
 
-        return TestHelper.Verify(source);
+        TestHelper.AssertMatchesSnapshot(source);
     }
 
     [Fact]
-    public Task NestedEnum_IsSkipped()
+    public void NestedEnum_IsSkipped()
     {
         // Nested enums are intentionally not generated; the snapshot should contain no sources.
         const string source = """
@@ -124,11 +124,11 @@ public class GeneratorSnapshotTests
             }
             """;
 
-        return TestHelper.Verify(source);
+        TestHelper.AssertMatchesSnapshot(source);
     }
 
     [Fact]
-    public Task InternalEnum_GeneratesInternalClass()
+    public void InternalEnum_GeneratesInternalClass()
     {
         const string source = """
             namespace Sample;
@@ -140,6 +140,6 @@ public class GeneratorSnapshotTests
             }
             """;
 
-        return TestHelper.Verify(source);
+        TestHelper.AssertMatchesSnapshot(source);
     }
 }

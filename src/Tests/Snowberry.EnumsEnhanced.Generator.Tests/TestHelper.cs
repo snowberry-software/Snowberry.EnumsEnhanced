@@ -1,7 +1,8 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using System.Runtime.CompilerServices;
+using System.Text;
 using Microsoft.CodeAnalysis.CSharp;
-using VerifyXunit;
 
 namespace Snowberry.EnumsEnhanced.Generator.Tests;
 
@@ -39,15 +40,90 @@ internal static class TestHelper
     }
 
     /// <summary>
-    /// Runs the generator over <paramref name="source"/> and snapshots the result with Verify.
+    /// Runs the generator over <paramref name="source"/> and compares every generated file with its approved
+    /// snapshot in <c>Snapshots/{TestClass}.{TestMethod}#{HintName}.verified.cs</c>.
     /// </summary>
-    public static Task Verify(string source)
+    /// <remarks>
+    /// On a mismatch the actual output is written next to the snapshot as <c>.received.cs</c> (git-ignored) so it can
+    /// be diffed. Set the <c>UPDATE_SNAPSHOTS</c> environment variable to <c>1</c> to accept the current output instead.
+    /// </remarks>
+    /// <param name="source">The C# source to run the generator over.</param>
+    /// <param name="callerFilePath">Supplied by the compiler; locates the <c>Snapshots</c> folder and names the test class.</param>
+    /// <param name="testName">Supplied by the compiler; the calling test method's name.</param>
+    public static void AssertMatchesSnapshot(
+        string source,
+        [CallerFilePath] string callerFilePath = "",
+        [CallerMemberName] string testName = "")
     {
         var compilation = CreateCompilation(source);
-        var driver = CreateDriver().RunGenerators(compilation);
+        var runResult = CreateDriver()
+            .RunGenerators(compilation, TestContext.Current.CancellationToken)
+            .GetRunResult();
 
-        return Verifier.Verify(driver).UseDirectory("Snapshots");
+        runResult.Diagnostics.Should().BeEmpty("the generator must not report diagnostics for the snapshot inputs");
+
+        var snapshotDirectory = Path.Combine(Path.GetDirectoryName(callerFilePath)!, "Snapshots");
+        var prefix = $"{Path.GetFileNameWithoutExtension(callerFilePath)}.{testName}#";
+        var updateSnapshots = Environment.GetEnvironmentVariable("UPDATE_SNAPSHOTS") == "1";
+
+        var expectedFiles = new HashSet<string>(
+            Directory.EnumerateFiles(snapshotDirectory, prefix + "*.verified.cs"),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var generated in runResult.Results.Single().GeneratedSources)
+        {
+            var verifiedPath = Path.Combine(snapshotDirectory, $"{prefix}{Path.GetFileNameWithoutExtension(generated.HintName)}.verified.cs");
+            var receivedPath = Path.ChangeExtension(Path.ChangeExtension(verifiedPath, null), ".received.cs");
+            var actual = NormalizeSnapshot($"//HintName: {generated.HintName}\n{generated.SourceText}");
+
+            expectedFiles.Remove(verifiedPath);
+
+            if (updateSnapshots)
+            {
+                File.WriteAllText(verifiedPath, actual, s_SnapshotEncoding);
+                File.Delete(receivedPath);
+                continue;
+            }
+
+            var expected = File.Exists(verifiedPath) ? NormalizeSnapshot(File.ReadAllText(verifiedPath)) : null;
+
+            if (actual == expected)
+            {
+                File.Delete(receivedPath);
+                continue;
+            }
+
+            File.WriteAllText(receivedPath, actual, s_SnapshotEncoding);
+            actual.Should().Be(
+                expected,
+                "the generated {0} must match the approved snapshot {1} (actual output written to {2}; set UPDATE_SNAPSHOTS=1 to accept it)",
+                generated.HintName,
+                Path.GetFileName(verifiedPath),
+                Path.GetFileName(receivedPath));
+        }
+
+        if (updateSnapshots)
+        {
+            foreach (var stale in expectedFiles)
+                File.Delete(stale);
+
+            return;
+        }
+
+        expectedFiles.Should().BeEmpty("every approved snapshot of {0} must still be generated", testName);
     }
+
+    /// <summary>UTF-8 with BOM, matching the existing snapshot files.</summary>
+    private static readonly Encoding s_SnapshotEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+
+    /// <summary>
+    /// Normalizes line endings to LF and trims trailing whitespace so snapshots compare equal across platforms and
+    /// git checkouts.
+    /// </summary>
+    /// <param name="text">The snapshot text.</param>
+    /// <returns>The normalized text.</returns>
+    private static string NormalizeSnapshot(string text)
+        => text.Replace("\r\n", "\n").TrimEnd();
 
     /// <summary>
     /// Returns the run-step reasons recorded for the generator's tracked transform on the most
