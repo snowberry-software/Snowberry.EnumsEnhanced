@@ -1,5 +1,4 @@
 ﻿using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 
 namespace Snowberry.EnumsEnhanced.Benchmark.Benchmarks;
 
@@ -7,9 +6,6 @@ namespace Snowberry.EnumsEnhanced.Benchmark.Benchmarks;
 [MemoryDiagnoser]
 [CategoriesColumn]
 [BenchmarkCategory("IsDefinedValue")]
-[SimpleJob(RuntimeMoniker.Net48)]
-[SimpleJob(RuntimeMoniker.Net90)]
-[SimpleJob(RuntimeMoniker.Net10_0)]
 public class IsDefinedValueBenchmark
 {
     [Params(TestEnum.Test1, TestEnum.Test7)]
